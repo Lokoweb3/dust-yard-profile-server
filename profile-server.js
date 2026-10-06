@@ -20,7 +20,7 @@
  * Production notes: replace the JSON file store with a real database, put this behind HTTPS,
  * and replace validateSummary() with checks against your server-recorded match sessions.
  */
-const http = require('http'), fs = require('fs'), crypto = require('crypto');
+const http = require('http'), fs = require('fs'), crypto = require('crypto'), zlib = require('zlib'), path = require('path');
 const nacl = require('tweetnacl'), bs58 = require('bs58');
 const { Connection, Keypair, PublicKey, SystemProgram, Transaction, ComputeBudgetProgram } = require('@solana/web3.js');
 const {
@@ -139,6 +139,9 @@ async function main(){
   const server = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyPath, 'utf8'))));
   const conn = new Connection(RPC, 'confirmed');
   const store = loadStore();
+  // serve the game itself from public/index.html, so one Railway address hosts both
+  let game = null; const gamePath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(gamePath)){ const raw = fs.readFileSync(gamePath); game = { raw, gz:zlib.gzipSync(raw, { level:9 }) }; console.log(`serving the game from ${gamePath} (${(raw.length/1048576).toFixed(1)} MB, ${(game.gz.length/1048576).toFixed(1)} MB gzipped)`); }
   const send = async (built) => {
     const { blockhash } = await conn.getLatestBlockhash();
     const sigs = [];
@@ -151,6 +154,11 @@ async function main(){
     const reply = (code, obj, type) => { res.writeHead(code, { 'Content-Type':type || 'application/json', 'Access-Control-Allow-Origin':ALLOWED_ORIGIN, 'Access-Control-Allow-Headers':'content-type' }); res.end(type ? obj : JSON.stringify(obj)); };
     try {
       if (req.method === 'OPTIONS') return reply(204, '', 'text/plain');
+      if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?') || req.url === '/index.html') && game){
+        const gz = /gzip/.test(req.headers['accept-encoding'] || '');
+        res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', ...(gz ? { 'Content-Encoding':'gzip' } : {}) });
+        return res.end(gz ? game.gz : game.raw);
+      }
       if (req.method === 'GET' && (req.url === '/' || req.url === '/health')){
         let xnt = null; try { xnt = (await conn.getBalance(server.publicKey))/1e9; } catch(e){}
         return reply(200, { ok:true, feePayer:server.publicKey.toBase58(), feePayerXnt:xnt, profiles:Object.keys(store.profiles).length });
