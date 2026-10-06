@@ -433,7 +433,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
     <div class="bigscore" id="finalScore">0</div>
     <p class="stat" id="finalStat"></p>
     <p class="stat" id="xpLine"></p>
-    <button class="btn" id="againBtn">Play again</button><button class="btn ghost" id="menuBtn">Menu</button>
+    <button class="btn" id="againBtn">Play again</button><button class="btn ghost" id="shareBtn">Share on X</button><button class="btn ghost" id="menuBtn">Menu</button>
     <div class="best" id="bestLine2"></div>
     <div class="lbPostRow" id="lbPostRow" hidden><input id="callsign" maxlength="16" placeholder="Your callsign" aria-label="Callsign"><button class="btn ghost" id="lbPost">Post score</button><span id="lbMsg"></span></div>
     <div class="lb" id="lbBox2" hidden><b id="lbTitle2">Leaderboard</b><div id="lbList2"></div></div>
@@ -7874,19 +7874,20 @@ if (isTouch) { document.body.classList.add('touch'); $('keysDesk').hidden = true
 
 /* ---------- Renderer & scenes ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
-const CFG_DEFAULT = { sens:1, adsSens:.9, padSens:1, fov:75, quality:isTouch ? 'medium' : 'high', vol:1, fps:false, aimAssist:true, auto:true };
+const CFG_DEFAULT = { sens:1, adsSens:.9, padSens:1, fov:75, quality:isTouch ? 'low' : 'medium', vol:1, fps:false, aimAssist:true, auto:true };
 let cfg = Object.assign({}, CFG_DEFAULT);
 try { cfg = Object.assign(cfg, JSON.parse(store.get('dustyard-settings') || '{}') || {}); } catch(e){}
 const QUALITY = {
   low:{ pr:.75, shadows:false, shadowSize:512, post:false, dust:false },
-  medium:{ pr:1.1, shadows:true, shadowSize:1024, post:true, dust:true },
-  high:{ pr:1.75, shadows:true, shadowSize:2048, post:true, dust:true }
+  medium:{ pr:1, shadows:true, shadowSize:1024, post:true, dust:true, bloomScale:.35 },
+  high:{ pr:1.5, shadows:true, shadowSize:2048, post:true, dust:true, bloomScale:.5 }
 };
 const qPR = () => Math.min(window.devicePixelRatio || 1, QUALITY[cfg.quality].pr);
 renderer.setPixelRatio(qPR());
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false; let shadowTick = 0;
 renderer.autoClear = false;
 $('game').appendChild(renderer.domElement);
 const cv = renderer.domElement;
@@ -10201,7 +10202,7 @@ function aimAssist(){
 function applyQuality(){
   const Q = QUALITY[cfg.quality], pr = qPR();
   renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight);
-  if (composer){ composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); }
+  if (composer){ composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); if (bloomPass) bloomPass.setSize(innerWidth*pr, innerHeight*pr); }
   sun.castShadow = Q.shadows;
   if (sun.shadow.mapSize.x !== Q.shadowSize){ if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; } sun.shadow.mapSize.set(Q.shadowSize, Q.shadowSize); }
   dust.visible = Q.dust && currentMap === 'yard';
@@ -10251,8 +10252,8 @@ function watchFps(dt){
     fpsShown = Math.round(fpsN/fpsAcc); fpsAcc = 0; fpsN = 0;
     $('fps').hidden = !cfg.fps; if (cfg.fps) $('fps').textContent = fpsShown + ' FPS';
     if (state === 'play' && cfg.auto && cfg.quality !== 'low'){
-      slowT = fpsShown < 28 ? slowT + .5 : 0;
-      if (slowT >= 6){ slowT = 0; cfg.quality = cfg.quality === 'high' ? 'medium' : 'low'; saveCfg(); applyQuality(); toast(`The game was running slowly, so graphics were lowered to ${cfg.quality}. You can change this in Settings.`, 4500); }
+      slowT = fpsShown < 40 ? slowT + .5 : 0;
+      if (slowT >= 4){ slowT = 0; cfg.quality = cfg.quality === 'high' ? 'medium' : 'low'; saveCfg(); applyQuality(); toast(`The game was running slowly, so graphics were lowered to ${cfg.quality}. You can change this in Settings.`, 4500); }
     }
   }
 }
@@ -10403,10 +10404,10 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
       const r = e.rifle; scene.attach(r);
       debris.push({ obj:r, vel:new V3(dir.x*1.5 + (Math.random()-.5), 1.5, dir.z*1.5 + (Math.random()-.5)), spin:new V3((Math.random()-.5)*6, 0, (Math.random()-.5)*6), life:2.9 });
     }
-    const LBL = { knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill' };
-    const pts = Math.round((src === 'knife' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
+    const LBL = { knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill', pet:'Companion kill' };
+    const pts = Math.round((src === 'knife' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' || src === 'pet' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
     const tn = e.type === 'armored' ? 'Armored down' : e.type === 'sniper' ? 'Sniper down' : e.type === 'rusher' ? 'Rusher down' : 'Enemy down';
-    let xp = 100*(e.scoreMul || 1)*(src === 'air' || src === 'drone' ? .5 : 1) + (head ? 50 : 0) + (src === 'knife' ? 50 : 0);
+    let xp = 100*(e.scoreMul || 1)*(src === 'air' || src === 'drone' || src === 'pet' ? .5 : 1) + (head ? 50 : 0) + (src === 'knife' ? 50 : 0);
     if (e.type === 'boss'){
       queuePrompt('boss'); addMilestone(`Juggernaut kill, wave ${wave}`); xp = 2500; score += 2500; sInv.air++; feed('Juggernaut down: +2500 and a free airstrike', true); banner('Juggernaut down');
       for (const k of ['ammo','health','nade']) spawnPickup(k, e.pos.x + (Math.random()-.5)*3, e.pos.z + (Math.random()-.5)*3);
@@ -10414,7 +10415,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
     score += pts; splash(pts, (LBL[src] || (head ? 'Headshot' : e.type === 'boss' ? 'Juggernaut down' : tn)) + `  +${Math.round(xp)} XP`, head || src === 'knife');
     giveXP(xp);
     if (head && !src) addHeadshot(cur());
-    if (src !== 'air' && src !== 'drone') addStreakKill();
+    if (src !== 'air' && src !== 'drone' && src !== 'pet') addStreakKill();
     dropLoot(e);
     if (!src){
       const W = cur(); W.kills++;
@@ -10561,7 +10562,7 @@ function updateHUD(dt){
   const boss = enemies.find(e => e.alive && e.type === 'boss');
   $('bossBar').hidden = !boss;
   if (boss) $('bossFill').style.width = Math.max(0, boss.hp/boss.maxHp*100) + '%';
-  drawCompass(); drawMinimap();
+  hud.mapT = (hud.mapT || 0) - dt; if (hud.mapT <= 0){ hud.mapT = .05; drawCompass(); drawMinimap(); }
 }
 
 /* ---------- Waves ---------- */
@@ -10693,7 +10694,7 @@ function update(dt){
   for (const e of enemies) updateEnemy(e, dt);
   separateEnemies();
   enemies = enemies.filter(e => !e.gone);
-  if (hubMode) updateHub(dt); else updateWaves(dt);
+  if (hubMode) updateHub(dt); else { updateWaves(dt); updatePet(dt); petCombat(dt); }
 
   // viewmodel: position, bob, sway, inertia, recoil, reload, actions
   const W = cur(), V = W.vm;
@@ -10821,11 +10822,11 @@ function resetGame(){
 }
 function startGame(fromPad){
   if (padClicking) fromPad = true;
-  leaveHub();
+  leaveHub(); removePet();
   if (fromPad !== true) setPadActive(false);
   setMap(selectedMap); initAudio(); resetGame();
   state = 'play'; show(null); $('hud').hidden = false; $('touch').hidden = !isTouch;
-  startWave(); if (fromPad !== true) requestLock();
+  startWave(); summonPet(); if (pet) setTimeout(() => petSay('LFG'), 1200); if (fromPad !== true) requestLock();
   toast(isTouch ? 'Tap Swap or the weapon bar to change guns' : padActive ? 'Press Triangle to switch weapons' : 'Press 1, 2, 3 or 4 (or scroll) to switch weapons', 5000);
 }
 function pause(){
@@ -10837,7 +10838,7 @@ function pause(){
   setTimeout(() => { if (state === 'paused') maybePrompt(); }, 400);
 }
 function resume(fromPad){ if (padClicking) fromPad = true; state = 'play'; show(null); $('touch').hidden = !isTouch; initAudio(); if (fromPad !== true){ setPadActive(false); requestLock(); } }
-function toMenu(){ leaveHub(); state = 'menu'; clearEnemies(); $('hud').hidden = true; $('touch').hidden = true; $('bestLine').textContent = bestText(); show('menu'); setTimeout(() => maybePrompt(), 600); }
+function toMenu(){ leaveHub(); removePet(); state = 'menu'; clearEnemies(); $('hud').hidden = true; $('touch').hidden = true; $('bestLine').textContent = bestText(); show('menu'); setTimeout(() => maybePrompt(), 600); }
 /* ---------- Shared leaderboard ---------- */
 let lbDb = null, lbId = null, lastGame = null, lbRows = [];
 (async () => {
@@ -10910,7 +10911,7 @@ function makeAvatar(col, name, x1, title){
   } else { const b = new THREE.Mesh(Cy(.3,.3,1.7,12), MS(col,.6)); b.position.y = .85; g.add(b); }
   a.tag = nameTag(name, col, x1, title); g.add(a.tag); scene.add(g); return a;
 }
-function removeAvatar(id){ const a = avatars.get(id); if (a){ scene.remove(a.g); avatars.delete(id); } }
+function removeAvatar(id){ const a = avatars.get(id); if (a){ scene.remove(a.g); if (a.pet) scene.remove(a.pet.g); avatars.delete(id); } }
 function onPlazaPeers(ch){
   for (const p of ch.left) removeAvatar(p.peer);
   for (const p of ch.peers){
@@ -10919,15 +10920,117 @@ function onPlazaPeers(ch){
     if (typeof pr.x !== 'number' || typeof pr.z !== 'number') continue;
     let a = avatars.get(p.peer);
     const name = String(pr.name || 'Degen').slice(0,16), col = Number(pr.col) || 0x2f6bff, x1 = pr.x1 === true, title = ['XNT Holder','NFT Collector','XNT Whale'].includes(pr.title) ? pr.title : '';
-    if (a && (a.name !== name || a.col !== col || a.x1 !== x1 || a.title !== title)){ removeAvatar(p.peer); a = null; }
-    if (!a){ a = makeAvatar(col, name, x1, title); a.pos.set(pr.x, pr.y || 0, pr.z); avatars.set(p.peer, a); }
+    const petKey = pr.pet && pr.pet.name ? pr.pet.name + '|' + (pr.pet.image || '') : '';
+    if (a && (a.name !== name || a.col !== col || a.x1 !== x1 || a.title !== title || a.petKey !== petKey)){ removeAvatar(p.peer); a = null; }
+    if (!a){ a = makeAvatar(col, name, x1, title); a.petKey = petKey; if (petKey) a.pet = otherPet(pr.pet); a.pos.set(pr.x, pr.y || 0, pr.z); avatars.set(p.peer, a); }
     a.target.set(Math.max(-45, Math.min(45, pr.x)), Math.max(0, Math.min(10, pr.y || 0)), Math.max(-45, Math.min(45, pr.z))); a.tyaw = Number(pr.yaw) || 0;
   }
   const others = ch.peers.filter(p => !p.isMe && p.presence && typeof p.presence.x === 'number').length;
   $('plazaCount').textContent = others ? `${others + 1} players in the market` : 'You are the only one here right now';
 }
+/* ---------- NFT companions in the Degen Market ---------- */
+let pet = null, petCfg = null;
+try { petCfg = JSON.parse(store.get('dy-companion') || 'null'); } catch(e){ petCfg = null; }
+const PET_LINES = ['gm', 'wagmi', 'LFG', 'XNT to the moon', 'ser, this is a market', 'nice camo', 'any skulls for sale?', 'hodl', 'few understand', 'gn soon?'];
+function petColors(img){
+  // average the most colorful pixels of the NFT art for the body color
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.drawImage(img, 0, 0, 24, 24);
+    const d = g.getImageData(0, 0, 24, 24).data; let r = 0, gg = 0, b = 0, n = 0;
+    for (let i=0;i<d.length;i+=4){ const mx = Math.max(d[i], d[i+1], d[i+2]), mn = Math.min(d[i], d[i+1], d[i+2]); if (mx - mn > 40 && mx > 60){ r += d[i]; gg += d[i+1]; b += d[i+2]; n++; } }
+    if (n > 8) return new THREE.Color(r/n/255, gg/n/255, b/n/255);
+  } catch(e){}
+  return null;
+}
+function buildPet(cfg){
+  const g = new THREE.Group(), base = new THREE.Color().setHSL((hashStr(cfg.mint) % 360)/360, .65, .5);
+  const bodyMat = new THREE.MeshStandardMaterial({ color:base, roughness:.35, metalness:.4 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.3, 24, 18), bodyMat); body.scale.set(1, .92, .9); body.castShadow = true; g.add(body);
+  // face screen showing the NFT
+  const art = nftArtCanvas({ item:cfg.name || 'NFT', collection:cfg.symbol || '' });
+  const tex = new THREE.CanvasTexture(art);
+  const screenMat = new THREE.MeshBasicMaterial({ map:tex, toneMapped:false });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(.36, .36), screenMat); screen.position.set(0, .02, .272); g.add(screen);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(.2, .018, 8, 32), new THREE.MeshStandardMaterial({ color:0x15161c, roughness:.4, metalness:.7 })); rim.position.set(0, .02, .268); rim.scale.set(1.02, 1.02, 1); g.add(rim);
+  const glowMat = new THREE.MeshBasicMaterial({ color:base.clone().offsetHSL(0, 0, .2) });
+  for (const sx of [-1, 1]){
+    const ant = new THREE.Mesh(Cy(.012, .012, .2, 6), bodyMat); ant.position.set(sx*.13, .33, -.02); ant.rotation.z = -sx*.35; g.add(ant);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(.035, 10, 8), glowMat); tip.position.set(sx*.17, .43, -.02); g.add(tip);
+  }
+  const jet = new THREE.Sprite(new THREE.SpriteMaterial({ map:flashTex, color:base.clone().offsetHSL(0, 0, .25), blending:THREE.AdditiveBlending, transparent:true, depthWrite:false }));
+  jet.position.y = -.34; jet.scale.set(.32, .5, 1); g.add(jet);
+  const tag = nameTag(cfg.name || 'Companion', base.getHex()); tag.position.y = .78; tag.scale.multiplyScalar(.75); g.add(tag);
+  // swap in the real NFT image when it loads (needs the image host to allow it)
+  if (cfg.image){
+    const img = new Image(); img.crossOrigin = 'anonymous'; img.referrerPolicy = 'no-referrer';
+    img.onload = () => { try { const t = new THREE.Texture(img); t.needsUpdate = true; screenMat.map = t; screenMat.needsUpdate = true; const col = petColors(img); if (col){ bodyMat.color.copy(col); glowMat.color.copy(col).offsetHSL(0, 0, .25); jet.material.color.copy(glowMat.color); } } catch(e){} };
+    img.src = cfg.image;
+  }
+  g.position.set(P.pos.x - Math.sin(P.yaw)*2.8 + Math.cos(P.yaw)*.75, P.pos.y + 1.35, P.pos.z - Math.cos(P.yaw)*2.8 - Math.sin(P.yaw)*.75); scene.add(g);
+  return { g, body, screen, jet, vel:new V3(), say:null, sayT:0, nextSay:6 + Math.random()*8, trick:0, cfg };
+}
+function summonPet(){ removePet(); if (petCfg && (hubMode || state === 'play')) pet = buildPet(petCfg); }
+function removePet(){ if (pet){ if (pet.say) scene.remove(pet.say); scene.remove(pet.g); pet = null; } }
+function petSay(text){
+  if (!pet) return;
+  if (pet.say) pet.g.remove(pet.say);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64; const g = c.getContext('2d');
+  g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.roundRect(4, 6, 248, 44, 16); g.fill(); g.beginPath(); g.moveTo(110, 50); g.lineTo(128, 62); g.lineTo(134, 50); g.fill();
+  g.fillStyle = '#1b1030'; g.font = '700 26px "Barlow Condensed", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 29);
+  pet.say = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false })); pet.say.scale.set(1.2, .3, 1); pet.say.position.y = 1.08; pet.g.add(pet.say); pet.sayT = 2.6;
+}
+function updatePet(dt){
+  if (!pet) return;
+  const fwd = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), right = new V3(Math.cos(P.yaw), 0, -Math.sin(P.yaw));
+  const idle = !P.moving && hubMode;
+  // trail behind the shoulder while walking, orbit lazily while standing still
+  // stay where you can see it: ahead and to the right, drifting a little while you stand still
+  const want = idle ? P.pos.clone().addScaledVector(fwd, 2.8 + Math.sin(T*.6)*.3).addScaledVector(right, .75 + Math.sin(T*.4)*.35) : P.pos.clone().addScaledVector(right, 1.15).addScaledVector(fwd, .7);
+  want.y = P.pos.y + 1.35 + Math.sin(T*2.2)*.08 + (pet.trick > 0 ? Math.sin((1 - pet.trick)*Math.PI)*.6 : 0);
+  const d = want.sub(pet.g.position);
+  pet.vel.lerp(d.multiplyScalar(3.2), Math.min(1, dt*4)); pet.g.position.addScaledVector(pet.vel, dt);
+  const look = idle ? Math.atan2(P.pos.x - pet.g.position.x, P.pos.z - pet.g.position.z) : Math.atan2(fwd.x, fwd.z);
+  pet.g.rotation.y = angleLerp(pet.g.rotation.y, look, Math.min(1, dt*5)) + (pet.trick > 0 ? dt*14 : 0);
+  pet.g.rotation.z = THREE.MathUtils.clamp(-pet.vel.dot(right)*.12, -.35, .35);
+  pet.g.rotation.x = THREE.MathUtils.clamp(pet.vel.dot(fwd)*.06, -.25, .25);
+  pet.jet.scale.y = .42 + Math.random()*.16 + Math.min(.3, pet.vel.length()*.05);
+  if (pet.trick > 0) pet.trick = Math.max(0, pet.trick - dt*1.4);
+  if (pet.say){ pet.sayT -= dt; pet.say.material.opacity = Math.min(1, pet.sayT*2); if (pet.sayT <= 0){ pet.g.remove(pet.say); pet.say = null; } }
+  pet.nextSay -= dt;
+  if (pet.nextSay <= 0){ pet.nextSay = 14 + Math.random()*16; if (hubMode) petSay(PET_LINES[Math.floor(Math.random()*PET_LINES.length)]); if (Math.random() < .5) pet.trick = 1; }
+}
+function petTrick(){ if (pet){ pet.trick = 1; petSay(['wheee', 'gm!', 'LFG!', 'hi :)'][Math.floor(Math.random()*4)]); sfx.pickup(); } }
+function setCompanion(n){
+  petCfg = { mint:n.mint, name:String(n.name || 'Companion').slice(0, 24), symbol:String(n.symbol || '').slice(0, 10), image:n.image && /^https:\/\//.test(n.image) ? n.image : '', owner:x1Addr, at:Date.now() };
+  store.set('dy-companion', JSON.stringify(petCfg));
+  if (hubMode) summonPet();
+  x1Msg = hubMode ? `${petCfg.name} is now your companion.` : `${petCfg.name} will join you in the Degen Market.`;
+  toast(x1Msg, 3500); renderPhone();
+}
+function renderCompanionApp(body){
+  const head = document.createElement('div'); head.className = 'phHead';
+  head.append(phoneBtn('‹ Home', () => { phoneApp = 'home'; renderPhone(); }, 'phBack'), phoneLine('Companion', 'phTitle')); body.appendChild(head);
+  if (!petCfg){
+    body.appendChild(phoneLine('Turn one of your NFTs into a companion that follows you around the Degen Market.', 'phSmall'));
+    body.appendChild(phoneLine('Open My NFTs, pick an NFT, and tap "Make companion". You need to verify wallet ownership first.', 'phSmall'));
+    body.appendChild(phoneBtn('Open My NFTs', () => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }, 'phMain'));
+    return;
+  }
+  const card = document.createElement('div'); card.className = 'phCard';
+  card.append(phoneLine('Your companion', 'phSmall'), phoneLine(petCfg.name, 'phAddr'), phoneLine(hubMode ? (pet ? 'Hanging out with you now' : 'Resting') : 'Waiting for you in the Degen Market', 'phOk'));
+  body.appendChild(card);
+  if (hubMode && pet) body.appendChild(phoneBtn('Do a trick', () => { closeUI(); petTrick(); }, 'phMain'));
+  body.appendChild(phoneBtn('Share on X', shareCompanion));
+  body.appendChild(phoneLine('Your companion also fights beside you in Dust Yard and Neon District: it zaps raiders it can see and spots the nearest one on your minimap.', 'phSmall'));
+  body.appendChild(phoneBtn('Choose a different NFT', () => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }));
+  body.appendChild(phoneBtn('Dismiss companion', () => { removePet(); petCfg = null; store.set('dy-companion', ''); x1Msg = ''; renderPhone(); }, 'phGhost'));
+}
+
 function updateHub(dt){
+  updatePet(dt);
   for (const a of avatars.values()){
+    if (a.pet){ const pg = a.pet.g, ry = a.yaw, tx = a.pos.x + Math.cos(ry)*1.1 - Math.sin(ry)*.4, tz = a.pos.z - Math.sin(ry)*1.1 - Math.cos(ry)*.4;
+      pg.position.x += (tx - pg.position.x)*Math.min(1, dt*3); pg.position.z += (tz - pg.position.z)*Math.min(1, dt*3); pg.position.y = a.pos.y + 1.35 + Math.sin(T*2.2 + a.col)*.08; pg.rotation.y = angleLerp(pg.rotation.y, ry, Math.min(1, dt*4)); }
     const before = a.pos.clone(); a.pos.lerp(a.target, Math.min(1, dt*8)); a.g.position.copy(a.pos);
     a.yaw = angleLerp(a.yaw, a.tyaw + Math.PI, Math.min(1, dt*10)); a.g.rotation.y = a.yaw;
     a.spd += ((a.pos.distanceTo(before)/Math.max(dt,1e-3)) - a.spd)*Math.min(1, dt*6);
@@ -10936,7 +11039,7 @@ function updateHub(dt){
   }
   if (hubCrystal){ hubCrystal.rotation.y += dt*.8; hubCrystal.position.y = 3.4 + Math.sin(T*1.5)*.15; }
   presT -= dt;
-  if (net.plaza && presT <= 0){ presT = .1; net.plaza.presence({ x:+P.pos.x.toFixed(2), y:+P.pos.y.toFixed(2), z:+P.pos.z.toFixed(2), yaw:+P.yaw.toFixed(3), name:callsign(), col:myColor, x1:x1Verified, title:holderTitle() }).catch(() => {}); }
+  if (net.plaza && presT <= 0){ presT = .1; net.plaza.presence({ x:+P.pos.x.toFixed(2), y:+P.pos.y.toFixed(2), z:+P.pos.z.toFixed(2), yaw:+P.yaw.toFixed(3), name:callsign(), col:myColor, x1:x1Verified, title:holderTitle(), pet:pet && petCfg ? { name:petCfg.name, mint:petCfg.mint, image:petCfg.image } : null }).catch(() => {}); }
   $('chatHint').textContent = padActive ? 'Triangle opens your phone, Square at the trade board opens the NFT market' : isTouch ? 'Use the Phone, Chat and Trade buttons' : 'Enter to chat, Q for your phone, E or click at the trade board to trade';
   $('phoneKey').textContent = padActive ? 'Triangle' : 'Q';
   const near = (hubBoard && P.pos.distanceTo(hubBoard) < 5) || HUB_STALLS.some(s => Math.hypot(s.x - P.pos.x, s.z - P.pos.z) < 3.8);
@@ -10949,6 +11052,7 @@ async function startHub(){
   if (!padClicking && !padActive) requestLock();
   toast(isTouch ? 'Welcome to the Degen Market. Use the Chat and Trade buttons.' : 'Welcome to the Degen Market. Press Enter to chat, E at a stall or the trade board to trade.', 5000);
   $('plazaCount').textContent = 'Connecting to the market...';
+  summonPet(); if (pet) setTimeout(() => petSay('gm!'), 1500);
   try {
     if (!net.room && window.claude && window.claude.use) net.room = await window.claude.use('room');
     if (!net.db && window.claude && window.claude.use) net.db = await window.claude.use('db');
@@ -10966,6 +11070,7 @@ async function startHub(){
 }
 function leaveHub(){
   if (!hubMode) return;
+  removePet();
   hubMode = false; document.body.classList.remove('hub'); $('chatBox').hidden = true; closeUI(true);
   if (net.plazaUnsub) net.plazaUnsub(); if (net.plaza) net.plaza.leave().catch(() => {}); net.plaza = null;
   if (net.chatUnsub) net.chatUnsub(); if (net.marketUnsub) net.marketUnsub(); net.chatUnsub = net.marketUnsub = null;
@@ -11241,7 +11346,7 @@ function renderPhone(){
   const body = $('phBody'); body.innerHTML = '';
   if (phoneApp === 'home'){
     const grid = document.createElement('div'); grid.className = 'phGrid';
-    for (const [icon, name, fn] of [['👛','X1 Wallet',() => { phoneApp = 'wallet'; renderPhone(); }], ['🖼️','My NFTs',() => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }], ['👤','Account',() => { closeUI(true); openAccount(); }], ['🛒','NFT Market',() => { if (!hubMode){ x1Msg = ''; toast('The NFT Market is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openMarket(); }], ['💬','Chat',() => { if (!hubMode){ toast('Chat is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openChat(); }], ['🔎','X1 Explorer',() => openExplorer()]]){
+    for (const [icon, name, fn] of [['👛','X1 Wallet',() => { phoneApp = 'wallet'; renderPhone(); }], ['🖼️','My NFTs',() => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }], ['🐾','Companion',() => { phoneApp = 'companion'; x1Msg = ''; renderPhone(); }], ['👤','Account',() => { closeUI(true); openAccount(); }], ['🛒','NFT Market',() => { if (!hubMode){ x1Msg = ''; toast('The NFT Market is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openMarket(); }], ['💬','Chat',() => { if (!hubMode){ toast('Chat is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openChat(); }], ['🔎','X1 Explorer',() => openExplorer()]]){
       const b = document.createElement('button'); b.type = 'button'; b.className = 'phApp';
       const i = document.createElement('span'); i.textContent = icon; const n = document.createElement('b'); n.textContent = name; b.append(i, n); b.addEventListener('click', fn); grid.appendChild(b);
     }
@@ -11252,6 +11357,7 @@ function renderPhone(){
   if (phoneApp.startsWith('gw')){ renderGW(body); return; }
   if (phoneApp === 'qr'){ renderQR(body); return; }
   if (phoneApp === 'gallery'){ renderGallery(body); return; }
+  if (phoneApp === 'companion'){ renderCompanionApp(body); return; }
   if (phoneApp === 'diag'){ renderDiag(body); return; }
   // wallet app
   const head = document.createElement('div'); head.className = 'phHead';
@@ -11510,6 +11616,8 @@ function renderGallery(body){
     body.append(phoneLine(n.name || 'Unnamed NFT', 'phTitle2'), phoneLine(`${n.symbol || 'NFT'}${n.collection ? (n.collection.verified ? ', verified collection' : ', unverified collection') : ''}`, 'phSmall'));
     if (n.desc) body.appendChild(phoneLine(n.desc, 'phSmall'));
     body.appendChild(phoneLine(`Mint ${shortAddr(n.mint)}`, 'phSmall'));
+    if (x1Verified && holder.addr === x1Addr) body.appendChild(phoneBtn(petCfg && petCfg.mint === n.mint ? 'Your companion' : 'Make companion', () => { if (!petCfg || petCfg.mint !== n.mint) nftImage(n).then(() => setCompanion(n)); }, 'phMain'));
+    else body.appendChild(phoneLine(isGame() ? 'Unlock your game wallet to use this NFT as a companion.' : 'Verify ownership in X1 Wallet to use this NFT as a companion.', 'phSmall'));
     body.appendChild(phoneBtn('View on X1 Explorer', () => { const a = document.createElement('a'); a.href = 'https://explorer.mainnet.x1.xyz/address/' + n.mint; a.target = '_blank'; a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click(); a.remove(); }, 'phMain'));
     return;
   }
@@ -11886,7 +11994,7 @@ let PROFILE_API = '';
 // When the game is served by the profile server itself (for example on Railway), use it automatically
 (async () => {
   if (window.claude || !/^https?:$/.test(location.protocol)) return;
-  try { const r = await fetch('/health', { cache:'no-store' }); const j = await r.json(); if (j && j.ok && j.feePayer) PROFILE_API = location.origin; } catch(e){}
+  try { const r = await fetch('/health', { cache:'no-store' }); const j = await r.json(); if (j && j.ok && j.feePayer){ PROFILE_API = location.origin; enableServerSocial(location.origin); } } catch(e){}
 })();
 function canonicalJSON(v){
   if (Array.isArray(v)) return '[' + v.map(canonicalJSON).join(',') + ']';
@@ -11977,10 +12085,130 @@ function renderNftStep(box, row, back){
   wrap.appendChild(tbl); box.appendChild(wrap);
   box.appendChild(aLine(n.mint ? `Minted: ${shortAddr(n.mint)}${n.syncedAt ? ', last synced ' + ago(n.syncedAt) : ''}. ${v.changed ? 'Your stats changed since the last sync.' : 'On-chain stats are up to date.'}` : 'Not minted yet.', 'acctSub'));
   if (n.pending.length) box.appendChild(aLine('Milestones waiting to sync: ' + n.pending.slice(-5).join(', '), 'acctOk'));
+  row(aBtn('Share on X', shareProfile));
   row(aBtn(n.mint ? (v.changed ? 'Sync to X1' : 'Up to date') : 'Mint profile NFT', () => { if (!n.mint || v.changed) syncProfileNft(); }, n.mint && !v.changed ? 'ghost' : ''), aBtn('Download card', () => { const a = document.createElement('a'); a.href = card.toDataURL('image/png'); a.download = `dust-yard-${acct.username}.png`; document.body.appendChild(a); a.click(); a.remove(); }), back());
   if (v.payload){ const t = document.createElement('textarea'); t.className = 'acctCode'; t.readOnly = true; t.value = v.payload; box.appendChild(t); }
   if (!PROFILE_API) box.appendChild(aLine('Minting needs your game server (profile-server.js). Until it is connected, you can preview the card and sign test requests.', 'acctSub'));
   else box.appendChild(aLine('Connected to your profile server.', 'acctOk'));
+}
+
+/* ---------- Your own server: leaderboard, chat, market and live plaza ---------- */
+let srvMode = false;
+const srvListeners = { chat:new Set(), market:new Set(), scores:new Set() };
+function srvNotify(col){ (srvListeners[col] || new Set()).forEach(fn => fn()); }
+async function srvSign(obj){ return b58(await guestSign(new TextEncoder().encode(canonicalJSON(obj)))); }
+function makeSrvDb(base){
+  const getCol = async (col, order, limit) => {
+    const r = await fetch(`${base}/api/col/${col}?order=${order || ''}&limit=${limit || 20}`, { cache:'no-store' }); const j = await r.json();
+    return { docs:(j.rows || []).map(x => ({ id:x.id, exists:true, data:() => x.data })) };
+  };
+  const write = async (col, id, op, data) => {
+    const ts = Date.now(), body = { col, id, op, data:data || null, ts }; body.sig = await srvSign({ col, id, op, data:data || null, ts });
+    const r = await fetch(`${base}/api/write`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'write failed'); return j;
+  };
+  return {
+    collection(col){
+      let order = null, limit = 20;
+      const q = {
+        orderBy(f){ order = f === 't' ? null : f; return q; }, limit(n){ limit = n; return q; },
+        get(){ return getCol(col, order, limit); },
+        onSnapshot(cb, err){
+          let alive = true; const run = () => { if (alive) getCol(col, order, limit).then(s => { if (alive) cb(s); }).catch(e => { if (err) err(e); }); };
+          run(); const iv = setInterval(run, 15000); srvListeners[col].add(run);
+          return () => { alive = false; clearInterval(iv); srvListeners[col].delete(run); };
+        },
+        doc(){ return { set:(d) => write(col, guestKey.pub, 'add', d) }; }
+      };
+      return q;
+    },
+    doc(path){
+      const [col, id] = path.split('/');
+      return {
+        get: async () => { const r = await fetch(`${base}/api/doc/${col}/${id}`, { cache:'no-store' }); const j = await r.json(); return { exists:!!j.exists, data:() => j.data }; },
+        set:(d) => write(col, id, 'set', d), update:(d) => write(col, id, 'update', d), delete:() => write(col, id, 'delete')
+      };
+    }
+  };
+}
+function makeSrvRoom(base){
+  return { join: async () => {
+    const url = base.replace(/^http/, 'ws') + '/ws'; let ws = null, closed = false, pending = null, known = new Set(); const cbs = new Set();
+    const connect = () => {
+      ws = new WebSocket(url);
+      ws.onopen = () => { if (pending) ws.send(pending); };
+      ws.onmessage = ev => {
+        let m; try { m = JSON.parse(ev.data); } catch(e){ return; }
+        if (m.t === 'peers'){
+          const ids = new Set(m.peers.map(p => p.peer)), left = [...known].filter(id => !ids.has(id)).map(peer => ({ peer })); known = ids;
+          const ch = { peers:m.peers.map(p => ({ peer:p.peer, isMe:p.peer === m.me, presence:p.presence })), left };
+          cbs.forEach(cb => cb(ch));
+        } else if (m.t === 'chat' || m.t === 'market' || m.t === 'scores') srvNotify(m.t);
+      };
+      ws.onclose = () => { if (!closed) setTimeout(connect, 2000); };
+    };
+    connect();
+    return {
+      presence: async d => { pending = JSON.stringify({ t:'p', d }); if (ws && ws.readyState === 1) ws.send(pending); },
+      onPeers: cb => { cbs.add(cb); return () => cbs.delete(cb); },
+      leave: async () => { closed = true; try { ws.close(); } catch(e){} }
+    };
+  } };
+}
+function enableServerSocial(base){
+  if (window.claude || srvMode) return;
+  srvMode = true; lbDb = makeSrvDb(base); net.db = lbDb; net.room = makeSrvRoom(base);
+  const ready = () => { if (guestKey && guestKey.pub){ lbId = guestKey.pub; refreshBoard(); } else setTimeout(ready, 300); };
+  ready();
+}
+// companions of other players
+const PET_HOSTS = /^https:\/\/([a-z0-9-]+\.)*(arweave\.net|irys\.xyz|ipfs\.io|nftstorage\.link|mypinata\.cloud|cf-ipfs\.com|dweb\.link|up\.railway\.app)\//i;
+function otherPet(p){
+  const cfg = { mint:String(p.mint || p.name || 'pet'), name:String(p.name || 'Companion').slice(0,24), image:PET_HOSTS.test(p.image || '') ? p.image : '' };
+  const o = buildPet(cfg); o.other = true; return o;
+}
+
+/* ---------- Share on X ---------- */
+const GAME_URL_DEFAULT = 'https://dust-yard-profile-server-production.up.railway.app/';
+function gameUrl(){ return !window.claude && /^https:$/.test(location.protocol) && PROFILE_API ? location.origin + '/' : GAME_URL_DEFAULT; }
+function shareX(text){
+  const u = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(gameUrl())}&hashtags=${encodeURIComponent('DustYard,X1')}`;
+  const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click(); a.remove();
+}
+function shareScore(){
+  const g = lastGame || { score, wave, map:currentMap };
+  shareX(`I survived wave ${g.wave} in Dust Yard with ${Number(g.score).toLocaleString()} points${g.map === 'neon' ? ' on Neon District' : ''} 💀 Can you beat it?`);
+}
+function shareProfile(){
+  const s = profileSummary();
+  shareX(`I'm @${acct.username}, level ${s.level} in Dust Yard: ${s.kills} kills, ${s.headshots} headshots, best wave ${s.bestWave} 💀 My player card lives on X1 as a soulbound NFT.`);
+}
+function shareCompanion(){ shareX(`Meet my Dust Yard companion: ${petCfg.name} 🐾 Turn your X1 NFTs into companions that fight beside you.`); }
+
+/* ---------- Companions in battle ---------- */
+const PET_BATTLE_LINES = ['contact!', 'behind you!', 'nice shot', 'I got you', 'LFG', 'reload, I cover', 'raider spotted'];
+function petCombat(dt){
+  if (!pet || hubMode || state !== 'play') return;
+  pet.zapCd = (pet.zapCd || 1.5) - dt; pet.spotCd = (pet.spotCd || 3) - dt;
+  const from = pet.g.position;
+  let best = null, bd = 22;
+  for (const e of enemies){
+    if (!e.alive) continue;
+    const chest = new V3(e.pos.x, (e.y || 0) + 1.2*e.g.scale.x, e.pos.z), d = chest.distanceTo(from);
+    if (d < bd && lineOfSight(from, chest)){ bd = d; best = { e, chest }; }
+  }
+  if (best && pet.zapCd <= 0){
+    pet.zapCd = 2.2 + Math.random()*.6;
+    spawnTracer(from.clone(), best.chest, 0x6ff0ff); sfx.droneFire();
+    damageEnemy(best.e, 14, false, new V3().subVectors(best.chest, from).normalize(), 'pet');
+    if (Math.random() < .15) petSay(PET_BATTLE_LINES[Math.floor(Math.random()*PET_BATTLE_LINES.length)]);
+  }
+  if (pet.spotCd <= 0){
+    // spot the nearest raider so it shows on your minimap and compass
+    pet.spotCd = 7; let near = null, nd = 40;
+    for (const e of enemies){ if (!e.alive) continue; const d = Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z); if (d < nd){ nd = d; near = e; } }
+    if (near){ near.lastFire = Math.max(near.lastFire || 0, T); if (Math.random() < .3) petSay('raider spotted'); }
+  }
 }
 
 function gameOver(){
@@ -12163,6 +12391,7 @@ $('gsBack').addEventListener('click', () => show(gsReturn === 'pause' ? 'pausePa
   el.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); selectWeapon(i); }, { passive:false });
 });
 $('againBtn').addEventListener('click', () => startGame());
+$('shareBtn').addEventListener('click', shareScore);
 $('resumeBtn').addEventListener('click', () => resume());
 $('quitBtn').addEventListener('click', toMenu);
 $('menuBtn').addEventListener('click', toMenu);
@@ -12354,6 +12583,8 @@ function setupPost(){
     gunPass = new THREE.RenderPass(gunScene, gunCam); gunPass.clear = false; gunPass.clearDepth = true;
     composer.addPass(gunPass);
     bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth/2, innerHeight/2), .38, .55, .8); composer.addPass(bloomPass);
+    const bloomSet = bloomPass.setSize.bind(bloomPass);
+    bloomPass.setSize = (w, h) => { const k = (QUALITY[cfg.quality] && QUALITY[cfg.quality].bloomScale) || .5; bloomSet(Math.max(64, Math.round(w*k)), Math.max(64, Math.round(h*k))); };
     gradePass = new THREE.ShaderPass(GradeShader);
     composer.addPass(gradePass);
   } catch(e){ composer = null; }
@@ -12376,6 +12607,7 @@ function loop(){
   }
   sky.position.copy(camera.position);
   updateAtmos(performance.now()/1000);
+  shadowTick++; if (shadowTick % 2 === 0) renderer.shadowMap.needsUpdate = true;   // shadows every other frame
   if (composer && QUALITY[cfg.quality].post){
     gunPass.enabled = state === 'play' || state === 'paused';
     gradePass.uniforms.time.value = performance.now()/1000;

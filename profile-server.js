@@ -131,6 +131,91 @@ function cardSvg(p){
 <text x="36" y="470" font-family="monospace" font-size="13" fill="#f4ecdc" opacity=".55">fingerprint ${esc(p.fingerprint.slice(0, 32))}…</text></svg>`;
 }
 
+
+/* ---------- Social layer: leaderboard, chat, market listings, live plaza ---------- */
+// Writes are signed by the player's device key (their guest key), so nobody can edit another player's rows.
+const SOCIAL_FILE = () => require('path').join(DATA_DIR, 'social.json');
+let social = null;
+function loadSocial(){ try { social = JSON.parse(fs.readFileSync(SOCIAL_FILE(), 'utf8')); } catch(e){ social = {}; } for (const k of ['scores','chat','market']) social[k] = social[k] || {}; }
+let socialDirty = false;
+function saveSocialSoon(){ if (socialDirty) return; socialDirty = true; setTimeout(() => { socialDirty = false; try { fs.writeFileSync(SOCIAL_FILE() + '.tmp', JSON.stringify(social)); fs.renameSync(SOCIAL_FILE() + '.tmp', SOCIAL_FILE()); } catch(e){ console.error('social save failed', e.message); } }, 1500); }
+const lastWrite = new Map();
+const str = (v, n) => String(v == null ? '' : v).slice(0, n);
+const num = (v, max) => { const x = Number(v); return Number.isFinite(x) ? Math.max(0, Math.min(max, Math.round(x))) : 0; };
+function cleanDoc(col, d){
+  d = d || {};
+  if (col === 'scores'){
+    const o = { callsign:str(d.callsign, 16), level:num(d.level, 50), updated:Date.now() };
+    for (const m of ['yard','neon']){ if (d['best_' + m] !== undefined) o['best_' + m] = num(d['best_' + m], 1e7); if (d['wave_' + m] !== undefined) o['wave_' + m] = num(d['wave_' + m], 999); }
+    return o;
+  }
+  if (col === 'market'){
+    const link = str(d.link, 200);
+    return { name:str(d.name, 16), item:str(d.item, 40), collection:str(d.collection, 30), chain:['solana','x1','other'].includes(d.chain) ? d.chain : 'other', price:str(d.price, 24), note:str(d.note, 80), link:/^https:\/\//.test(link) ? link : '', t:Date.now() };
+  }
+  if (col === 'chat') return { name:str(d.name, 16), text:str(d.text, 160), col:num(d.col, 0xffffff), t:Date.now() };
+  return null;
+}
+function verifyWrite(body){
+  const { col, id, op, data, ts, sig } = body || {};
+  if (!['scores','market','chat'].includes(col) || !['set','update','delete','add'].includes(op)) return 'bad request';
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(id || '')) return 'bad id';
+  if (Math.abs(Date.now() - Number(ts)) > 120000) return 'expired';
+  const msg = canonical({ col, id, op, data:data || null, ts:Number(ts) });
+  try { if (!nacl.sign.detached.verify(Buffer.from(msg), bs58.decode(sig), bs58.decode(id))) return 'bad signature'; } catch(e){ return 'bad signature'; }
+  const key = id + ':' + col, wait = col === 'chat' ? 1200 : 3000;
+  if (Date.now() - (lastWrite.get(key) || 0) < wait) return 'slow down';
+  lastWrite.set(key, Date.now());
+  return '';
+}
+function socialWrite(body){
+  const err = verifyWrite(body); if (err) return { status:err === 'slow down' ? 429 : 401, error:err };
+  const { col, id, op, data } = body;
+  if (col === 'chat'){
+    if (op !== 'add') return { status:400, error:'bad op' };
+    const doc = cleanDoc('chat', data); if (!doc.text.trim()) return { status:400, error:'empty' };
+    doc.by = id; const key = Date.now().toString(36) + crypto.randomBytes(3).toString('hex'); social.chat[key] = doc;
+    const keys = Object.keys(social.chat); if (keys.length > 200) for (const k of keys.sort().slice(0, keys.length - 200)) delete social.chat[k];
+    saveSocialSoon(); broadcast({ t:'chat' }); return { status:200, ok:true, id:key };
+  }
+  if (op === 'delete'){ delete social[col][id]; saveSocialSoon(); broadcast({ t:col }); return { status:200, ok:true }; }
+  if (op === 'add') return { status:400, error:'bad op' };
+  const clean = cleanDoc(col, data);
+  social[col][id] = op === 'update' ? Object.assign({}, social[col][id] || {}, clean) : clean;
+  if (Object.keys(social.market).length > 500) return { status:507, error:'market full' };
+  saveSocialSoon(); broadcast({ t:col }); return { status:200, ok:true };
+}
+function socialQuery(col, order, limit){
+  const rows = Object.entries(social[col] || {}).map(([id, data]) => ({ id, data })).filter(r => order ? typeof r.data[order] === 'number' : true);
+  rows.sort((a, b) => (b.data[order || 't'] || 0) - (a.data[order || 't'] || 0));
+  return rows.slice(0, Math.min(100, limit || 20));
+}
+// live plaza over WebSocket: positions are relayed, never trusted for anything important
+let wss = null; const peers = new Map(); let peerSeq = 0;
+function broadcast(obj){ if (!wss) return; const m = JSON.stringify(obj); for (const ws of wss.clients) if (ws.readyState === 1) ws.send(m); }
+function startPlaza(server){
+  const { WebSocketServer } = require('ws');
+  wss = new WebSocketServer({ server, path:'/ws', maxPayload:4096 });
+  wss.on('connection', ws => {
+    const id = 'p' + (++peerSeq).toString(36); peers.set(id, { ws, presence:null, at:Date.now(), n:0 });
+    ws.on('message', raw => {
+      const p = peers.get(id); if (!p) return;
+      if (++p.n > 40){ return; }   // simple flood guard, reset every second
+      try { const m = JSON.parse(raw); if (m.t === 'p' && m.d && typeof m.d === 'object'){ const d = m.d;
+        p.presence = { x:+d.x || 0, y:+d.y || 0, z:+d.z || 0, yaw:+d.yaw || 0, name:str(d.name, 16), col:num(d.col, 0xffffff), x1:d.x1 === true, title:str(d.title, 20),
+          pet:d.pet && typeof d.pet === 'object' ? { name:str(d.pet.name, 24), mint:str(d.pet.mint, 44), image:/^https:\/\//.test(d.pet.image || '') ? str(d.pet.image, 200) : '' } : null };
+        p.at = Date.now(); } } catch(e){}
+    });
+    ws.on('close', () => { peers.delete(id); broadcast({ t:'left', id }); });
+    ws.send(JSON.stringify({ t:'hello', id }));
+  });
+  setInterval(() => {
+    const list = []; for (const [id, p] of peers){ p.n = 0; if (p.presence) list.push({ peer:id, presence:p.presence }); }
+    for (const [id, p] of peers) if (p.ws.readyState === 1) p.ws.send(JSON.stringify({ t:'peers', me:id, peers:list }));
+  }, 100);
+  setInterval(() => { for (const [id, p] of peers) if (Date.now() - p.at > 60000 && !p.presence){ try { p.ws.terminate(); } catch(e){} } }, 30000);
+}
+
 /* ---------- HTTP API ---------- */
 async function main(){
   if (process.argv.includes('--dry-run')) return dryRun();
@@ -139,7 +224,7 @@ async function main(){
   if (!fs.existsSync(keyPath)){ fs.writeFileSync(keyPath, JSON.stringify(Array.from(Keypair.generate().secretKey)), { mode:0o600 }); console.log('Created a new server keypair at ' + keyPath); }
   const server = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyPath, 'utf8'))));
   const conn = new Connection(RPC, 'confirmed');
-  const store = loadStore();
+  const store = loadStore(); loadSocial();
   // serve the game itself from public/index.html, so one Railway address hosts both
   let game = null; const gamePath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(gamePath)){ const raw = fs.readFileSync(gamePath); game = { raw, gz:zlib.gzipSync(raw, { level:9 }) }; console.log(`serving the game from ${gamePath} (${(raw.length/1048576).toFixed(1)} MB, ${(game.gz.length/1048576).toFixed(1)} MB gzipped)`); }
@@ -151,8 +236,8 @@ async function main(){
     }
     return sigs;
   };
-  http.createServer(async (req, res) => {
-    const reply = (code, obj, type) => { res.writeHead(code, { 'Content-Type':type || 'application/json', 'Access-Control-Allow-Origin':ALLOWED_ORIGIN, 'Access-Control-Allow-Headers':'content-type' }); res.end(type ? obj : JSON.stringify(obj)); };
+  const httpServer = http.createServer(async (req, res) => {
+    const reply = (code, obj, type) => { res.writeHead(code, { 'Content-Type':type || 'application/json', 'Access-Control-Allow-Origin':ALLOWED_ORIGIN, 'Access-Control-Allow-Headers':'content-type', 'Cache-Control':'no-store' }); res.end(type ? obj : JSON.stringify(obj)); };
     try {
       if (req.method === 'OPTIONS') return reply(204, '', 'text/plain');
       if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?') || req.url === '/index.html') && game){
@@ -170,6 +255,20 @@ async function main(){
         if (card[2] === 'svg') return reply(200, cardSvg(p), 'image/svg+xml');
         return reply(200, { name:`Dust Yard: @${p.summary.username}`, symbol:'DYP', description:'Soulbound Dust Yard player profile. Stats are updated by the game server at milestones.',
           image:`${PUBLIC_URL}/card/${card[1]}.svg`, attributes:Object.entries(fieldsFor(p.summary, p.fingerprint)).map(([trait_type, value]) => ({ trait_type, value })) });
+      }
+      const q = new URL(req.url, 'http://x');
+      if (req.method === 'GET' && q.pathname.startsWith('/api/col/')){
+        const col = q.pathname.slice(9); if (!['scores','market','chat'].includes(col)) return reply(404, { error:'not found' });
+        return reply(200, { rows:socialQuery(col, q.searchParams.get('order'), +q.searchParams.get('limit') || 20) });
+      }
+      if (req.method === 'GET' && q.pathname.startsWith('/api/doc/')){
+        const [col, id] = q.pathname.slice(9).split('/'); const d = social[col] && social[col][id];
+        return reply(200, { exists:!!d, data:d || null });
+      }
+      if (req.method === 'POST' && q.pathname === '/api/write'){
+        let b = ''; for await (const c of req){ b += c; if (b.length > 8000) return reply(413, { error:'too large' }); }
+        let body; try { body = JSON.parse(b); } catch(e){ return reply(400, { error:'bad json' }); }
+        const r = socialWrite(body); return reply(r.status, r.error ? { error:r.error } : r);
       }
       if (req.method !== 'POST' || req.url !== '/profile/sync') return reply(404, { error:'not found' });
       let body = ''; for await (const c of req){ body += c; if (body.length > 20000) return reply(413, { error:'too large' }); }
@@ -205,7 +304,9 @@ async function main(){
       store.profiles[r.wallet] = { mint, summary, fingerprint:r.fingerprint, fields, syncedAt:Date.now() }; saveStore(store);
       reply(200, { ok:true, mint, signatures:sigs });
     } catch(e){ console.error(e); reply(500, { error:'server error' }); }
-  }).listen(+process.env.PORT || 8787, '0.0.0.0', () => console.log(`profile server on ${PUBLIC_URL}, fee payer ${server.publicKey.toBase58()}`));
+  });
+  startPlaza(httpServer);
+  httpServer.listen(+process.env.PORT || 8787, '0.0.0.0', () => console.log(`profile server on ${PUBLIC_URL}, fee payer ${server.publicKey.toBase58()}`));
 }
 
 /* ---------- offline check: builds sample transactions without touching the network ---------- */

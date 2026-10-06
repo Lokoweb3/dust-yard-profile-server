@@ -8,12 +8,15 @@
     "start": "node profile-server.js",
     "dry-run": "node profile-server.js --dry-run"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@solana/spl-token": "0.4.9",
     "@solana/spl-token-metadata": "0.1.6",
     "@solana/web3.js": "1.95.8",
     "bs58": "5.0.0",
-    "tweetnacl": "1.0.3"
+    "tweetnacl": "1.0.3",
+    "ws": "8.18.0"
   }
 }

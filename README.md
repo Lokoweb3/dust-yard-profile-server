@@ -2,6 +2,8 @@
 
 Mints one soulbound profile NFT per claimed player on X1 and updates its stats at milestones. The server pays all fees.
 
+It also hosts the game: `public/index.html` is served at your Railway address, so players open that one address to play, and the game connects to the server automatically. To update the game, replace `public/index.html` and commit.
+
 ## Deploy on Railway
 
 1. Put this folder in a new **GitHub repository** (upload the files on github.com, or push with git).
@@ -10,12 +12,11 @@ Mints one soulbound profile NFT per claimed player on X1 and updates its stats a
 4. In the service's **Variables** tab, add:
    - `DATA_DIR` = `/data`
    - `PUBLIC_URL` = your Railway address from step 5 (for example `https://dust-yard-profile.up.railway.app`)
-   - `ALLOWED_ORIGIN` = your game's address (for example `https://your-game.netlify.app`)
    - optional: `X1_RPC` if you use a private X1 RPC
 5. In **Settings → Networking**, click **Generate Domain**. Copy it into `PUBLIC_URL` (step 4) and redeploy.
 6. Open `https://YOUR-DOMAIN/health`. It shows `feePayer`, the server wallet created on first start.
 7. Send a **small** amount of XNT to that `feePayer` address. Check `/health` again to see `feePayerXnt`.
-8. Put `https://YOUR-DOMAIN` into `PROFILE_API` in the game, then redeploy the game.
+8. Open `https://YOUR-DOMAIN` to play. The game finds the server by itself.
 
 Railway sets `PORT` automatically; the server already uses it.
 
