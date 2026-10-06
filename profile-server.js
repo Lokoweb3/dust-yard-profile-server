@@ -195,7 +195,7 @@ let wss = null; const peers = new Map(); let peerSeq = 0;
 function broadcast(obj){ if (!wss) return; const m = JSON.stringify(obj); for (const ws of wss.clients) if (ws.readyState === 1) ws.send(m); }
 function startPlaza(server){
   const { WebSocketServer } = require('ws');
-  wss = new WebSocketServer({ server, path:'/ws', maxPayload:4096 });
+  wss = new WebSocketServer({ server, path:'/ws', maxPayload:8192 });
   wss.on('connection', ws => {
     const id = 'p' + (++peerSeq).toString(36); peers.set(id, { ws, presence:null, at:Date.now(), n:0 });
     ws.on('message', raw => {
@@ -203,7 +203,8 @@ function startPlaza(server){
       if (++p.n > 40){ return; }   // simple flood guard, reset every second
       try { const m = JSON.parse(raw); if (m.t === 'p' && m.d && typeof m.d === 'object'){ const d = m.d;
         p.presence = { x:+d.x || 0, y:+d.y || 0, z:+d.z || 0, yaw:+d.yaw || 0, name:str(d.name, 16), col:num(d.col, 0xffffff), x1:d.x1 === true, title:str(d.title, 20),
-          pet:d.pet && typeof d.pet === 'object' ? { name:str(d.pet.name, 24), mint:str(d.pet.mint, 44), image:/^https:\/\//.test(d.pet.image || '') ? str(d.pet.image, 200) : '' } : null };
+          pet:d.pet && typeof d.pet === 'object' ? { name:str(d.pet.name, 24), mint:str(d.pet.mint, 44), image:/^https:\/\//.test(d.pet.image || '') ? str(d.pet.image, 200) : '',
+            traits:d.pet.traits && typeof d.pet.traits === 'object' ? Object.fromEntries(Object.entries(d.pet.traits).slice(0, 16).map(([k, v]) => [str(k, 24), str(v, 32)])) : null } : null };
         p.at = Date.now(); } } catch(e){}
     });
     ws.on('close', () => { peers.delete(id); broadcast({ t:'left', id }); });
@@ -219,7 +220,7 @@ function startPlaza(server){
 /* ---------- NFT art proxy ---------- */
 // NFT images live on Arweave, IPFS and similar hosts that often don't let games draw them in 3D.
 // The server fetches them and passes them on, so companions can wear the real art.
-const PROXY_HOSTS = /^([a-z0-9-]+\.)*(arweave\.net|ar-io\.dev|irys\.xyz|ipfs\.io|dweb\.link|nftstorage\.link|mypinata\.cloud|pinata\.cloud|cf-ipfs\.com|cloudflare-ipfs\.com|w3s\.link|shdw-drive\.genesysgo\.net|nft\.storage|githubusercontent\.com|imgur\.com)$/i;
+const PROXY_HOSTS = /^([a-z0-9-]+\.)*(arweave\.net|ar-io\.dev|irys\.xyz|ipfs\.io|dweb\.link|nftstorage\.link|mypinata\.cloud|pinata\.cloud|cf-ipfs\.com|cloudflare-ipfs\.com|w3s\.link|shdw-drive\.genesysgo\.net|nft\.storage|githubusercontent\.com|imgur\.com|x1\.ninja)$/i;
 const proxyCache = new Map(); let proxyBytes = 0;
 async function proxyFetch(u){
   let url; try { url = new URL(u); } catch(e){ return { status:400 }; }
