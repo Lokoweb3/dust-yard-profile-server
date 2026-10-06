@@ -66,9 +66,10 @@ function validateSummary(prev, next){
   if (!/^[a-z0-9_]{3,16}$/.test(n.username || '')) return 'bad username';
   if (prev){
     if (n.level < prev.level || n.kills < prev.kills || n.headshots < prev.headshots || n.bestWave < prev.bestWave) return 'stats went backwards';
-    const hours = Math.max(1/60, (Date.now() - prev.syncedAt)/3.6e6);
-    if ((n.kills - prev.kills)/hours > 1500) return 'kill rate too high';      // tune these limits for your game
-    if ((n.level - prev.level)/hours > 6) return 'level rate too high';
+    const hours = Math.max(0, (Date.now() - prev.syncedAt)/3.6e6);
+    // allow a burst (early levels are quick) plus a steady hourly rate; tune these limits for your game
+    if (n.kills - prev.kills > 60 + 1500*hours) return 'kill rate too high';
+    if (n.level - prev.level > 8 + 20*hours) return 'level rate too high';
   }
   // TODO: compare against kills, waves and XP your game server recorded for this wallet's sessions.
   return '';
@@ -184,7 +185,7 @@ async function main(){
       const prev = store.profiles[r.wallet];
       const summary = Object.assign({}, r.summary, { username:r.username, updated:Math.floor(Date.now()/1000) });
       const err = validateSummary(prev && Object.assign({}, prev.summary, { syncedAt:prev.syncedAt }), summary);
-      if (err) return reply(422, { error:err });
+      if (err){ console.log(`sync rejected for ${r.wallet}: ${err}`); return reply(422, { error:err }); }
       if (prev && prev.summary.username !== r.username) return reply(409, { error:'username mismatch' });
       if (!prev && Object.values(store.profiles).some(p => p.summary.username === r.username)) return reply(409, { error:'username taken' });
       const fields = fieldsFor(summary, r.fingerprint);
