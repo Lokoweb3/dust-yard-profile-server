@@ -11394,6 +11394,8 @@ function drawMarket(){
   $('mkTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === mkView));
   $('mkBrowse').hidden = mkView !== 'browse'; $('mkSell').hidden = mkView !== 'sell'; $('mkDetail').hidden = mkView !== 'detail';
   const nftv = mkView === 'nftbuy' || mkView === 'nftsell'; $('mkNft').hidden = !nftv; $('mkTabs').querySelectorAll('.srvOnly').forEach(b => { b.hidden = !srvMode; });
+  const warn = document.querySelector('#marketPanel .mkWarn');
+  if (warn) warn.textContent = nftv ? 'Buy and sell NFTs for XNT, signed in your own wallet. Your NFT stays in your wallet until it sells, and payment and NFT move together in one transaction. Never share your seed phrase.' : 'Board posts are messages from other players. Trades arranged here happen outside the game, so only deal with people you trust and never share your seed phrase.';
   if (nftv){ drawNftMarket($('mkNft')); return; }
   $('mkFilters').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.f === mkFilter));
   if (mkView === 'browse'){
