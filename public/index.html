@@ -250,6 +250,10 @@ body.touch #acctChip{ top:auto; bottom:calc(16px + env(safe-area-inset-bottom,0p
 #dailyBox b{ display:block; font-size:18px; color:var(--amber); margin-bottom:4px; } #dailyBox small{ display:block; font-size:13px; opacity:.65; margin-top:4px; }
 .dailyRow{ position:relative; display:flex; justify-content:space-between; font-size:16px; padding:3px 0 6px; } .dailyRow i{ position:absolute; left:0; bottom:1px; height:3px; background:#6fa8ff; border-radius:2px; }
 .dailyRow.done{ color:#5cff8a; } .dailyRow.done i{ background:#5cff8a; } .dailyRow em{ font-style:normal; opacity:.8; }
+#phBody #swIn{ width:100%; box-sizing:border-box; font-size:20px; }
+.badgeHead{ display:block; font-size:20px; color:var(--amber); margin:14px 0 6px; } .badgeGrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; max-width:620px; }
+.badge{ background:rgba(244,236,220,.05); border:1px solid rgba(244,236,220,.15); border-radius:8px; padding:8px 10px; opacity:.6; } .badge b{ display:block; font-size:16px; } .badge span{ display:block; font-size:13px; opacity:.8; }
+.badge.ready{ opacity:1; border-color:var(--amber); } .badge.got{ opacity:1; border-color:#5cff8a; } .badge i{ font-style:normal; font-size:13px; } .badge.got i{ color:#5cff8a; } .badge .btn{ font-size:15px; padding:4px 12px; margin-top:6px; }
 #scoreBox{ position:fixed; top:calc(14px + env(safe-area-inset-top,0px)); right:calc(20px + env(safe-area-inset-right,0px)); text-align:right; }
 #score{ font-size:34px; font-weight:700; line-height:1; }
 #feed{ margin-top:8px; display:flex; flex-direction:column; gap:3px; align-items:flex-end; font-size:17px; font-weight:600; }
@@ -9113,7 +9117,8 @@ const CAMOS = [
   { k:'obsidian', name:'Obsidian Neon', perk:'collector', desc:'NFT holders' },
   { k:'jslayer', name:'Juggernaut Slayer', item:'juggernaut_slayer', desc:'On-chain item' },
   { k:'voidninja', name:'Void Ninja', item:'void_ninja', desc:'On-chain item' },
-  { k:'x1circuit', name:'X1 Circuit', item:'x1_circuit', desc:'On-chain item' }
+  { k:'x1circuit', name:'X1 Circuit', item:'x1_circuit', desc:'On-chain item' },
+  { k:'s1vet', name:'S1 Veteran', item:'s1_veteran', desc:'Season 1 item' }
 ];
 // Diamond camo: a faceted crystal pattern with per-facet normals so it sparkles as the gun moves
 const diamondTex = (() => {
@@ -9180,6 +9185,7 @@ const camoMats = {
   jslayer: MS(0x3a0a0a, .45, .5, { map:canvasTex(128,128,(g,w,h)=>{ g.fillStyle='#3a0a0a'; g.fillRect(0,0,w,h); for (let i=0;i<9;i++){ const x=(i%3)*43+20, y=Math.floor(i/3)*43+20; g.fillStyle='#e8e2d0'; g.beginPath(); g.arc(x,y,11,0,Math.PI*2); g.fill(); g.fillStyle='#3a0a0a'; g.fillRect(x-6,y-3,4,4); g.fillRect(x+2,y-3,4,4); } }, [4,4]), emissive:0x2a0000 }),
   voidninja: MS(0x0b0614, .3, .5, { map:canvasTex(128,128,(g,w,h)=>{ g.fillStyle='#0b0614'; g.fillRect(0,0,w,h); for (let i=0;i<60;i++){ g.fillStyle=`rgba(${150+Math.random()*100|0},90,255,${Math.random()})`; g.fillRect(Math.random()*w, Math.random()*h, 2, 2); } }, [4,4]), emissive:0xffffff, emissiveIntensity:.6 }),
   x1circuit: MS(0x06140c, .35, .4, { map:canvasTex(128,128,(g,w,h)=>{ g.fillStyle='#06140c'; g.fillRect(0,0,w,h); g.strokeStyle='#5cff8a'; g.lineWidth=2; for (let i=0;i<12;i++){ let x=Math.random()*w, y=Math.random()*h; g.beginPath(); g.moveTo(x,y); x+=(Math.random()<.5?-1:1)*30; g.lineTo(x,y); y+=(Math.random()<.5?-1:1)*30; g.lineTo(x,y); g.stroke(); g.fillStyle='#5cff8a'; g.fillRect(x-3,y-3,6,6); } }, [4,4]), emissive:0xffffff, emissiveIntensity:.5 }),
+  s1vet: MS(0x2a2418, .4, .6, { map:canvasTex(128,128,(g,w,h)=>{ g.fillStyle='#2a2418'; g.fillRect(0,0,w,h); g.strokeStyle='#d8a93a'; g.lineWidth=3; for (let i=-w;i<w*2;i+=22){ g.beginPath(); g.moveTo(i,0); g.lineTo(i+h,h); g.stroke(); } g.fillStyle='#d8a93a'; g.font='bold 28px Arial'; g.fillText('S1', 44, 72); }, [3,3]), emissive:0x2a1a00 }),
   obsidian: new THREE.MeshPhysicalMaterial({ color:0xffffff, map:obsidianTex, emissive:0xffffff, emissiveMap:obsidianTex, emissiveIntensity:.8, roughness:.15, metalness:.6, clearcoat:1, clearcoatRoughness:.05 })
 };
 function applyCamo(W){
@@ -11736,7 +11742,7 @@ function renderPhone(){
   const body = $('phBody'); body.innerHTML = '';
   if (phoneApp === 'home'){
     const grid = document.createElement('div'); grid.className = 'phGrid';
-    for (const [icon, name, fn] of [['👛','X1 Wallet',() => { phoneApp = 'wallet'; renderPhone(); }], ['🖼️','My NFTs',() => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }], ['🌐','Browser',() => { phoneApp = 'browser'; x1Msg = ''; renderPhone(); }], ['🎁','Items',() => { phoneApp = 'items'; loadCatalog().then(() => loadDrops()).then(() => renderPhone()); renderPhone(); }], ['🐾','Companion',() => { phoneApp = 'companion'; x1Msg = ''; renderPhone(); }], ['👤','Account',() => { closeUI(true); openAccount(); }], ['🛒','NFT Market',() => { if (!hubMode){ x1Msg = ''; toast('The NFT Market is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openMarket(); }], ['💬','Chat',() => { if (!hubMode){ toast('Chat is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openChat(); }], ['🔎','X1 Explorer',() => openExplorer()]]){
+    for (const [icon, name, fn] of [['👛','X1 Wallet',() => { phoneApp = 'wallet'; renderPhone(); }], ['🖼️','My NFTs',() => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }], ['💱','Swap',() => { phoneApp = 'swap'; x1Msg = ''; renderPhone(); }], ['🌐','Browser',() => { phoneApp = 'browser'; x1Msg = ''; renderPhone(); }], ['🎁','Items',() => { phoneApp = 'items'; loadCatalog().then(() => loadDrops()).then(() => renderPhone()); renderPhone(); }], ['🐾','Companion',() => { phoneApp = 'companion'; x1Msg = ''; renderPhone(); }], ['👤','Account',() => { closeUI(true); openAccount(); }], ['🛒','NFT Market',() => { if (!hubMode){ x1Msg = ''; toast('The NFT Market is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openMarket(); }], ['💬','Chat',() => { if (!hubMode){ toast('Chat is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openChat(); }], ['🔎','X1 Explorer',() => openExplorer()]]){
       const b = document.createElement('button'); b.type = 'button'; b.className = 'phApp';
       const i = document.createElement('span'); i.textContent = icon; const n = document.createElement('b'); n.textContent = name; b.append(i, n); b.addEventListener('click', fn); grid.appendChild(b);
     }
@@ -11750,6 +11756,7 @@ function renderPhone(){
   if (phoneApp === 'companion'){ renderCompanionApp(body); return; }
   if (phoneApp === 'items'){ renderItemsApp(body); return; }
   if (phoneApp === 'browser'){ renderBrowser(body); return; }
+  if (phoneApp === 'swap'){ renderSwapApp(body); return; }
   if (phoneApp === 'diag'){ renderDiag(body); return; }
   // wallet app
   const head = document.createElement('div'); head.className = 'phHead';
@@ -12621,6 +12628,7 @@ function renderNftStep(box, row, back){
   if (v.payload){ const t = document.createElement('textarea'); t.className = 'acctCode'; t.readOnly = true; t.value = v.payload; box.appendChild(t); }
   if (!PROFILE_API) box.appendChild(aLine('Minting needs your game server (profile-server.js). Until it is connected, you can preview the card and sign test requests.', 'acctSub'));
   else box.appendChild(aLine('Connected to your profile server.', 'acctOk'));
+  renderBadges(box);
 }
 
 /* ---------- Your own server: leaderboard, chat, market and live plaza ---------- */
@@ -12833,6 +12841,7 @@ function renderItemsApp(body){
   const head = document.createElement('div'); head.className = 'phHead';
   head.append(phoneBtn('‹ Home', () => { phoneApp = 'home'; renderPhone(); }, 'phBack'), phoneLine('Items', 'phTitle')); body.appendChild(head);
   if (!srvMode){ body.appendChild(phoneLine('Tradeable items drop and get claimed on your Railway site.', 'phSmall')); return; }
+  if (itemCatalog && itemCatalog.season){ const left = Math.max(0, Math.ceil((itemCatalog.seasonEnds - Date.now())/864e5)); body.appendChild(phoneLine(`Season ${itemCatalog.season}: ${left} day${left === 1 ? '' : 's'} left. Season items never drop again after it ends.`, 'phOk')); }
   const un = myDrops.filter(d => d.status !== 'claimed');
   body.appendChild(phoneLine(un.length ? `${un.length} item${un.length === 1 ? '' : 's'} waiting to be claimed` : 'No unclaimed drops. Items drop from matches: bosses, deep waves and Neon District.', 'phSmall'));
   for (const d of un){ body.appendChild(phoneLine(`${d.item.name} #${d.serial} (${d.item.rarity})`, 'phOk')); body.appendChild(phoneBtn('Claim to wallet', () => claimDrop(d, () => { loadDrops().then(renderPhone); }), 'phMain')); }
@@ -12945,6 +12954,76 @@ async function autoReconnect(){
         return;
       }
     } catch(err){}
+  }
+}
+
+/* ---------- Swap app (XDEX, XNT <-> USDC.X) ---------- */
+let swapFrom = 'XNT', swapQuoteRes = null, swapQT = null, swapBusy = false;
+function usdcBal(){ const t = (holder.tokens || []).find(x => x.mint === 'B69chRzqzDCmdB5WYB8NRu5Yv5ZA95ABiZcdzCgGm9Tq'); return t ? t.amount : 0; }
+async function fetchSwapQuote(amt){
+  if (!(amt > 0)){ swapQuoteRes = null; renderPhone(); return; }
+  try { const r = await fetch(`${PROFILE_API}/api/swap/quote?from=${encodeURIComponent(swapFrom)}&amount=${amt}`, { cache:'no-store' }); swapQuoteRes = await r.json(); } catch(e){ swapQuoteRes = { error:'quote unavailable' }; }
+  if (phoneApp === 'swap'){ const el = $('swOut'); if (el) el.textContent = swapQuoteRes.error ? swapQuoteRes.error : `≈ ${swapQuoteRes.amountOut.toLocaleString(undefined, { maximumFractionDigits:6 })} ${swapFrom === 'XNT' ? 'USDC.X' : 'XNT'} (fee ${swapQuoteRes.feePct}%)`; }
+}
+async function doSwap(amt){
+  if (swapBusy) return; swapBusy = true;
+  const msg = t => { x1Msg = t; const el = $('swMsg'); if (el) el.textContent = t; };
+  try {
+    msg('Checking the swap...');
+    const j = await postJSON('/api/swap/prepare', { owner:x1Addr, from:swapFrom, amount:amt, slippageBps:100 });
+    msg(`Approve in your wallet: get at least ${j.minOut.toLocaleString(undefined, { maximumFractionDigits:6 })} ${swapFrom === 'XNT' ? 'USDC.X' : 'XNT'}...`);
+    const signed = await signTxB64(j.tx);
+    msg('Swapping on XDEX...');
+    const r = await postJSON('/api/swap/submit', { id:j.id, tx:signed });
+    msg('Swap complete.'); sfx.levelUp(); toast(`Swapped ${amt} ${swapFrom} on XDEX.`, 3500);
+    setTimeout(() => fetchBalance(), 1500);
+  } catch(e){ msg(`Couldn't swap: ${String(e.message || e).slice(0, 90)}`); }
+  swapBusy = false;
+}
+function renderSwapApp(body){
+  const head = document.createElement('div'); head.className = 'phHead';
+  head.append(phoneBtn('‹ Home', () => { phoneApp = 'home'; x1Msg = ''; renderPhone(); }, 'phBack'), phoneLine('Swap', 'phTitle')); body.appendChild(head);
+  if (!srvMode){ body.appendChild(phoneLine('Swaps work on your Railway site.', 'phSmall')); return; }
+  if (!x1Active || !isAddr(x1Addr)){ body.appendChild(phoneLine('Connect your wallet first.', 'phSmall')); body.appendChild(phoneBtn('Open X1 Wallet', () => { phoneApp = 'wallet'; renderPhone(); }, 'phMain')); return; }
+  const to = swapFrom === 'XNT' ? 'USDC.X' : 'XNT', have = swapFrom === 'XNT' ? (typeof x1Bal === 'number' ? x1Bal : 0) : usdcBal();
+  body.appendChild(phoneLine(`From ${swapFrom} (you have ${have.toLocaleString(undefined, { maximumFractionDigits:4 })})`, 'phSmall'));
+  const inp = document.createElement('input'); inp.id = 'swIn'; inp.inputMode = 'decimal'; inp.placeholder = `Amount of ${swapFrom}`; inp.autocomplete = 'off'; body.appendChild(inp);
+  let tmr = null; inp.addEventListener('input', () => { clearTimeout(tmr); const v = parseFloat(inp.value); tmr = setTimeout(() => fetchSwapQuote(v), 350); });
+  const out = phoneLine(`To ${to}`, 'phOk'); out.id = 'swOut'; body.appendChild(out);
+  const row = document.createElement('div'); row.className = 'phRow';
+  row.append(phoneBtn('⇅ Flip', () => { swapFrom = to; swapQuoteRes = null; renderPhone(); }), phoneBtn('Max', () => { const keep = swapFrom === 'XNT' ? .02 : 0; inp.value = Math.max(0, have - keep).toFixed(swapFrom === 'XNT' ? 4 : 2); fetchSwapQuote(parseFloat(inp.value)); }));
+  body.appendChild(row);
+  body.appendChild(phoneBtn(`Swap ${swapFrom} for ${to}`, () => { const v = parseFloat(inp.value); if (!(v > 0)){ x1Msg = 'Enter an amount.'; renderPhone(); return; } if (v > have){ x1Msg = `You only have ${have} ${swapFrom}.`; renderPhone(); return; } doSwap(v); }, 'phMain'));
+  body.appendChild(phoneLine('Trades directly with the XNT/USDC.X pool on XDEX, signed in your own wallet. 1% slippage protection: the swap cancels itself if the price moves more than that. You pay a small network fee in XNT.', 'phSmall'));
+  const m = phoneLine(x1Msg || '', 'phMsg'); m.id = 'swMsg'; body.appendChild(m);
+}
+
+/* ---------- Achievement badges ---------- */
+let badgeList = null;
+async function loadBadges(){ if (!srvMode || !acct || !acct.claimed) return; try { badgeList = await (await fetch(`${PROFILE_API}/api/badges?wallet=${acct.wallet}`, { cache:'no-store' })).json(); } catch(e){} }
+async function claimBadge(b){
+  try {
+    if (!x1Active || x1Addr !== acct.wallet) throw new Error(`connect ${shortAddr(acct.wallet)} first`);
+    const ts = Date.now(), msg = `Dust Yard achievement claim\nWallet: ${acct.wallet}\nAchievement: ${b.id}\nIssued At: ${ts}`;
+    const sig = b58(await walletSign(new TextEncoder().encode(msg)));
+    acctMsg = `Minting ${b.name}...`; renderAccount();
+    await postJSON('/api/badges/claim', { wallet:acct.wallet, id:b.id, ts, sig });
+    acctMsg = `${b.name} badge is in your wallet.`; sfx.levelUp(); await loadBadges(); setTimeout(() => fetchBalance(), 2000);
+  } catch(e){ acctMsg = `Couldn't claim: ${String(e.message || e).slice(0, 90)}`; }
+  renderAccount();
+}
+function renderBadges(box){
+  if (!srvMode) return;
+  const h = document.createElement('b'); h.className = 'badgeHead'; h.textContent = 'Achievement badges'; box.appendChild(h);
+  if (!badgeList){ box.appendChild(aLine('Loading...', 'acctSub')); loadBadges().then(renderAccount); return; }
+  if (!badgeList.synced) box.appendChild(aLine('Mint or sync your profile NFT first. Badges unlock from your synced stats.', 'acctSub'));
+  const grid = document.createElement('div'); grid.className = 'badgeGrid'; box.appendChild(grid);
+  for (const b of badgeList.badges){
+    const c = document.createElement('div'); c.className = 'badge' + (b.claimed ? ' got' : b.eligible ? ' ready' : '');
+    const t = document.createElement('b'); t.textContent = b.name; const d = document.createElement('span'); d.textContent = b.desc; c.append(t, d);
+    if (b.eligible && !b.claimed){ const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn'; btn.textContent = 'Claim'; btn.addEventListener('click', () => claimBadge(b)); c.appendChild(btn); }
+    else { const s = document.createElement('i'); s.textContent = b.claimed ? 'Claimed' : 'Locked'; c.appendChild(s); }
+    grid.appendChild(c);
   }
 }
 

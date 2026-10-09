@@ -106,9 +106,10 @@ function splitIntoTransactions(ixs, payer, signersFor, blockhash){
   if (cur.instructions.length > 1) txs.push(cur);
   return txs.map(tx => ({ tx, signers:signersFor(tx) }));
 }
-async function buildMint({ server, mint, owner, username, fields, rent }){
-  const meta = { mint:mint.publicKey, name:`Dust Yard: @${username}`.slice(0, 32), symbol:'DYP', uri:`${PUBLIC_URL}/card/${owner.toBase58()}.json`,
-    additionalMetadata:FIELD_ORDER.map(k => [k, fields[k]]) };
+async function buildMint({ server, mint, owner, username, fields, rent, name, symbol, uri, fieldOrder }){
+  const order = fieldOrder || FIELD_ORDER;
+  const meta = { mint:mint.publicKey, name:name || `Dust Yard: @${username}`.slice(0, 32), symbol:symbol || 'DYP', uri:uri || `${PUBLIC_URL}/card/${owner.toBase58()}.json`,
+    additionalMetadata:order.map(k => [k, fields[k]]) };
   const mintLen = getMintLen([ExtensionType.NonTransferable, ExtensionType.MetadataPointer]);
   const metaLen = 4 + pack(meta).length; // TLV header + packed metadata
   const lamports = await rent(mintLen + metaLen + 512); // small headroom for later field growth
@@ -122,7 +123,7 @@ async function buildMint({ server, mint, owner, username, fields, rent }){
     createAssociatedTokenAccountIdempotentInstruction(server.publicKey, ata, owner, mint.publicKey, TOKEN_2022_PROGRAM_ID),
     createMintToInstruction(mint.publicKey, ata, server.publicKey, 1, [], TOKEN_2022_PROGRAM_ID),
     createSetAuthorityInstruction(mint.publicKey, server.publicKey, AuthorityType.MintTokens, null, [], TOKEN_2022_PROGRAM_ID), // supply fixed at 1
-    ...FIELD_ORDER.map(k => createUpdateFieldInstruction({ programId:TOKEN_2022_PROGRAM_ID, metadata:mint.publicKey, updateAuthority:server.publicKey, field:k, value:fields[k] }))
+    ...order.map(k => createUpdateFieldInstruction({ programId:TOKEN_2022_PROGRAM_ID, metadata:mint.publicKey, updateAuthority:server.publicKey, field:k, value:fields[k] }))
   ];
   return { ixs, signersFor:tx => tx.instructions.some(ix => ix.keys.some(k => k.isSigner && k.pubkey.equals(mint.publicKey))) ? [server, mint] : [server] };
 }
@@ -275,6 +276,9 @@ const ITEMS = [
   { id:'neon_card', name:'Neon District Card', type:'card', rarity:'Rare', supply:1500, source:'neon', chance:.06, color:'#ff3cc8', desc:'A calling card from the rainy city.' },
   { id:'dust_card', name:'Dust Yard Card', type:'card', rarity:'Common', supply:3000, source:'wave3', chance:.1, color:'#f0a93b', desc:'A calling card from the shipping yard.' }
 ];
+ITEMS.push({ id:'s1_veteran', name:'Season 1 Veteran Camo', type:'camo', rarity:'Epic', supply:1500, source:'wave5', chance:.08, color:'#b8862b', desc:'Only drops during Season 1.', season:1 });
+const SEASON = +(process.env.SEASON || 1), SEASON_ENDS = Date.parse(process.env.SEASON_ENDS || '2026-12-31T23:59:59Z');
+const seasonOpen = it => !it.season || (it.season === SEASON && Date.now() < SEASON_ENDS);
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 const ROYALTY_BPS = Math.max(0, Math.min(1000, +(process.env.ROYALTY_BPS || 500)));
 const ITEMS_FILE = () => require('path').join(DATA_DIR, 'items.json');
@@ -301,7 +305,7 @@ function rollDrops(guest, m){
   const out = [];
   for (const it of ITEMS){
     if (out.length >= 2 || d.n >= 6) break;
-    const left = it.supply - (items.minted[it.id] || 0); if (left <= 0 || !eligible(it, m)) continue;
+    const left = it.supply - (items.minted[it.id] || 0); if (left <= 0 || !eligible(it, m) || !seasonOpen(it)) continue;
     const rolls = it.source === 'boss' ? Math.min(3, m.bosses) : 1;
     for (let r=0;r<rolls && out.length < 2;r++) if (crypto.randomInt(1000000) < it.chance*1000000){
       const serial = (items.minted[it.id] = (items.minted[it.id] || 0) + 1);
@@ -312,6 +316,18 @@ function rollDrops(guest, m){
   return out;
 }
 let umiCtx = null;
+function cuIx(units){ const d = new Uint8Array(5); d[0] = 2; new DataView(d.buffer).setUint32(1, units, true); return { programId:'ComputeBudget111111111111111111111111111111', keys:[], data:d }; }
+async function sendFitted(umi, builder){
+  const { U } = umiCtx;
+  let units = 250000;
+  try {
+    const probe = await builder.prepend({ instruction:{ ...cuIx(400000), programId:U.publicKey('ComputeBudget111111111111111111111111111111') }, signers:[], bytesCreatedOnChain:0 }).buildAndSign(umi);
+    const vtx = VersionedTransaction.deserialize(umi.transactions.serialize(probe));
+    const conn = new Connection(RPC, 'confirmed'), sim = await conn.simulateTransaction(vtx, { sigVerify:false, replaceRecentBlockhash:true });
+    if (!sim.value.err && sim.value.unitsConsumed) units = Math.min(1400000, Math.ceil(sim.value.unitsConsumed*1.15) + 5000);
+  } catch(e){}
+  return builder.prepend({ instruction:{ ...cuIx(units), programId:U.publicKey('ComputeBudget111111111111111111111111111111') }, signers:[], bytesCreatedOnChain:0 }).sendAndConfirm(umi);
+}
 function getUmi(secret){
   if (umiCtx) return umiCtx;
   const { createUmi } = require('@metaplex-foundation/umi-bundle-defaults');
@@ -322,7 +338,7 @@ function getUmi(secret){
 async function ensureCollection(secret){
   if (items.collection) return items.collection;
   const { umi, mpl, U } = getUmi(secret), col = U.generateSigner(umi);
-  await mpl.createNft(umi, { mint:col, name:'Dust Yard Items', symbol:'DYI', uri:`${PUBLIC_URL}/item/collection.json`, sellerFeeBasisPoints:U.percentAmount(ROYALTY_BPS/100), isCollection:true }).sendAndConfirm(umi);
+  await sendFitted(umi, mpl.createNft(umi, { mint:col, name:'Dust Yard Items', symbol:'DYI', uri:`${PUBLIC_URL}/item/collection.json`, sellerFeeBasisPoints:U.percentAmount(ROYALTY_BPS/100), isCollection:true }));
   items.collection = col.publicKey.toString(); saveItems(); console.log('created item collection', items.collection);
   return items.collection;
 }
@@ -334,13 +350,13 @@ async function mintItem(secret, drop, wallet){
       sellerFeeBasisPoints:U.percentAmount(ROYALTY_BPS/100), tokenOwner:U.publicKey(wallet), collection:U.some({ key:U.publicKey(col), verified:false }), creators:U.some(creators) })
     .add(mpl.verifyCollectionV1(umi, { metadata:mpl.findMetadataPda(umi, { mint:mint.publicKey }), collectionMint:U.publicKey(col), authority:umi.identity }));
   items.byMint[mint.publicKey.toString()] = drop.id; drop.mint = mint.publicKey.toString(); drop.status = 'pending'; drop.wallet = wallet; saveItems();
-  await b.sendAndConfirm(umi);
+  await sendFitted(umi, b);
   drop.status = 'claimed'; saveItems();
   return drop.mint;
 }
 async function itemsRoute(req, res, q, reply, server){
   const body = async () => { let b = ''; for await (const c of req){ b += c; if (b.length > 4000) throw new Error('too large'); } return JSON.parse(b || '{}'); };
-  if (req.method === 'GET' && q.pathname === '/api/items/catalog') return reply(200, { collection:items.collection || null, royaltyBps:ROYALTY_BPS, items:ITEMS.map(i => ({ ...i, minted:items.minted[i.id] || 0 })) });
+  if (req.method === 'GET' && q.pathname === '/api/items/catalog') return reply(200, { collection:items.collection || null, royaltyBps:ROYALTY_BPS, season:SEASON, seasonEnds:SEASON_ENDS, items:ITEMS.map(i => ({ ...i, minted:items.minted[i.id] || 0, available:seasonOpen(i) })) });
   if (req.method === 'GET' && q.pathname === '/api/drops'){
     const g = q.searchParams.get('guest'); if (!isB58(g)) return reply(400, { error:'bad guest' });
     return reply(200, { drops:Object.values(items.drops).filter(d => d.guest === g).map(d => ({ ...d, item:ITEM_BY_ID[d.item] })) });
@@ -484,6 +500,147 @@ async function marketRoute(req, res, q, reply, conn){
   return false;
 }
 
+
+/* ---------- XDEX swaps (XNT <-> USDC.X), signed and paid by the player ---------- */
+// The server only builds and checks the transaction; it never signs or holds funds.
+const { createSyncNativeInstruction, createCloseAccountInstruction, NATIVE_MINT } = require('@solana/spl-token');
+const XDEX = new PublicKey('sEsYH97wqmfnkzHedjNcw3zyJdPvUmsa9AixhS4b4fN'), USDCX = new PublicKey('B69chRzqzDCmdB5WYB8NRu5Yv5ZA95ABiZcdzCgGm9Tq');
+const SWAP_DISC = Buffer.from('8fbe5adac41e33de', 'hex');   // swap_base_input
+let poolCache = null;
+async function xdexPool(conn){
+  if (poolCache && Date.now() - poolCache.at < 600000) return poolCache;
+  const pairs = [];
+  for (const [a, b] of [[NATIVE_MINT, USDCX], [USDCX, NATIVE_MINT]]){
+    const r = await conn.getProgramAccounts(XDEX, { filters:[{ memcmp:{ offset:168, bytes:a.toBase58() } }, { memcmp:{ offset:200, bytes:b.toBase58() } }] });
+    for (const acc of r) pairs.push(acc);
+  }
+  let best = null, bestUsd = -1;
+  for (const acc of pairs){
+    const d = acc.account.data, pk = o => new PublicKey(d.subarray(o, o + 32));
+    const p = { id:acc.pubkey, config:pk(8), vault0:pk(72), vault1:pk(104), mint0:pk(168), mint1:pk(200), prog0:pk(232), prog1:pk(264), observation:pk(296) };
+    const usdVault = p.mint0.equals(USDCX) ? p.vault0 : p.vault1, bal = await conn.getTokenAccountBalance(usdVault);
+    if (+bal.value.uiAmount > bestUsd){ bestUsd = +bal.value.uiAmount; best = p; }
+  }
+  if (!best) throw new Error('no XNT/USDC.X pool found');
+  const cfg = await conn.getAccountInfo(best.config); best.feeRate = Number(cfg.data.readBigUInt64LE(12));
+  best.authority = PublicKey.findProgramAddressSync([Buffer.from('vault_and_lp_mint_auth_seed')], XDEX)[0];
+  best.at = Date.now(); poolCache = best; return best;
+}
+async function swapQuote(conn, from, amountIn){
+  const p = await xdexPool(conn), xntIn = from === 'XNT';
+  const [b0, b1] = await Promise.all([conn.getTokenAccountBalance(p.vault0), conn.getTokenAccountBalance(p.vault1)]);
+  // vaults also hold fees owed to the protocol and fund; the swap math uses what's left
+  const st = (await conn.getAccountInfo(p.id)).data, fee = o => st.readBigUInt64LE(o);
+  const r0 = BigInt(b0.value.amount) - fee(341) - fee(357), r1 = BigInt(b1.value.amount) - fee(349) - fee(365), xntIs0 = p.mint0.equals(NATIVE_MINT);
+  const [rIn, rOut] = (xntIn === xntIs0) ? [r0, r1] : [r1, r0];
+  const inAfterFee = amountIn - amountIn*BigInt(p.feeRate)/1000000n, out = inAfterFee*rOut/(rIn + inAfterFee);
+  return { pool:p, out, rIn, rOut, xntIs0 };
+}
+const pendingSwaps = new Map();
+async function swapRoute(req, res, q, reply, conn){
+  const body = async () => { let b = ''; for await (const c of req){ b += c; if (b.length > 4000) throw new Error('too large'); } return JSON.parse(b || '{}'); };
+  if (req.method === 'GET' && q.pathname === '/api/swap/quote'){
+    const from = q.searchParams.get('from') === 'USDC.X' ? 'USDC.X' : 'XNT', amt = Number(q.searchParams.get('amount'));
+    if (!(amt > 0 && amt < 1e9)) return reply(400, { error:'bad amount' });
+    const inRaw = BigInt(Math.round(amt*(from === 'XNT' ? 1e9 : 1e6))), qt = await swapQuote(conn, from, inRaw);
+    return reply(200, { from, amountIn:amt, amountOut:Number(qt.out)/(from === 'XNT' ? 1e6 : 1e9), feePct:qt.pool.feeRate/10000, pool:qt.pool.id.toBase58(), priceImpactPct:Number(inRaw*10000n/(qt.rIn + inRaw))/100 });
+  }
+  if (req.method === 'POST' && q.pathname === '/api/swap/prepare'){
+    const b = await body(), from = b.from === 'USDC.X' ? 'USDC.X' : 'XNT', amt = Number(b.amount), slip = Math.max(10, Math.min(500, +b.slippageBps || 100));
+    if (!isB58(b.owner) || !(amt > 0 && amt < 1e9)) return reply(400, { error:'bad request' });
+    const owner = new PublicKey(b.owner), xntIn = from === 'XNT', inRaw = BigInt(Math.round(amt*(xntIn ? 1e9 : 1e6)));
+    const qt = await swapQuote(conn, from, inRaw), p = qt.pool, minOut = qt.out*BigInt(10000 - slip)/10000n;
+    if (minOut <= 0n) return reply(400, { error:'amount too small' });
+    const wAta = getAssociatedTokenAddressSync(NATIVE_MINT, owner, false, TOKEN_PROGRAM_ID), uAta = getAssociatedTokenAddressSync(USDCX, owner, false, TOKEN_2022_PROGRAM_ID);
+    const [inAcc, outAcc] = xntIn ? [wAta, uAta] : [uAta, wAta];
+    const inVault = (xntIn === qt.xntIs0) ? p.vault0 : p.vault1, outVault = (xntIn === qt.xntIs0) ? p.vault1 : p.vault0;
+    const progOf = m => m.equals(USDCX) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID, inMint = xntIn ? NATIVE_MINT : USDCX, outMint = xntIn ? USDCX : NATIVE_MINT;
+    const data = Buffer.alloc(24); SWAP_DISC.copy(data, 0); data.writeBigUInt64LE(inRaw, 8); data.writeBigUInt64LE(minOut, 16);
+    const swapIx = { programId:XDEX, data, keys:[
+      { pubkey:owner, isSigner:true, isWritable:false }, { pubkey:p.authority, isSigner:false, isWritable:false }, { pubkey:p.config, isSigner:false, isWritable:false },
+      { pubkey:p.id, isSigner:false, isWritable:true }, { pubkey:inAcc, isSigner:false, isWritable:true }, { pubkey:outAcc, isSigner:false, isWritable:true },
+      { pubkey:inVault, isSigner:false, isWritable:true }, { pubkey:outVault, isSigner:false, isWritable:true },
+      { pubkey:progOf(inMint), isSigner:false, isWritable:false }, { pubkey:progOf(outMint), isSigner:false, isWritable:false },
+      { pubkey:inMint, isSigner:false, isWritable:false }, { pubkey:outMint, isSigner:false, isWritable:false }, { pubkey:p.observation, isSigner:false, isWritable:true } ] };
+    const ixs = [createAssociatedTokenAccountIdempotentInstruction(owner, wAta, owner, NATIVE_MINT, TOKEN_PROGRAM_ID)];
+    if (xntIn) ixs.push(SystemProgram.transfer({ fromPubkey:owner, toPubkey:wAta, lamports:Number(inRaw) }), createSyncNativeInstruction(wAta, TOKEN_PROGRAM_ID));
+    ixs.push(createAssociatedTokenAccountIdempotentInstruction(owner, uAta, owner, USDCX, TOKEN_2022_PROGRAM_ID), swapIx, createCloseAccountInstruction(wAta, owner, owner, [], TOKEN_PROGRAM_ID));
+    const { blockhash } = await conn.getLatestBlockhash();
+    const tx = new Transaction({ feePayer:owner, recentBlockhash:blockhash }).add(...ixs);
+    await withFittedLimit(conn, tx, 200000);
+    // dry run first so players see a clear error instead of a failed transaction
+    const sim = await conn.simulateTransaction(new VersionedTransaction(tx.compileMessage()), { sigVerify:false, replaceRecentBlockhash:true, commitment:'confirmed' });
+    if (sim.value.err){
+      const logs = (sim.value.logs || []).join(' '); console.log('swap simulation failed', JSON.stringify(sim.value.err), (sim.value.logs || []).slice(-6).join(' | ')); const msg = /insufficient (lamports|funds)/i.test(logs) || /0x1\b/.test(logs) ? 'not enough balance for this swap and its fee' : /slippage|ExceededSlippage|0x1771/i.test(logs) ? 'price moved, try again' : 'the swap would fail right now';
+      return reply(422, { error:msg });
+    }
+    const id = crypto.randomBytes(8).toString('hex'); pendingSwaps.set(id, { message:tx.serializeMessage().toString('base64'), owner:b.owner, exp:Date.now() + 90000 });
+    for (const [k, v] of pendingSwaps) if (v.exp < Date.now()) pendingSwaps.delete(k);
+    return reply(200, { id, tx:tx.serialize({ requireAllSignatures:false, verifySignatures:false }).toString('base64'), expectedOut:Number(qt.out)/(xntIn ? 1e6 : 1e9), minOut:Number(minOut)/(xntIn ? 1e6 : 1e9) });
+  }
+  if (req.method === 'POST' && q.pathname === '/api/swap/submit'){
+    const b = await body(), p = pendingSwaps.get(b.id); if (!p || p.exp < Date.now()) return reply(410, { error:'this quote expired, please try again' });
+    let tx; try { tx = Transaction.from(Buffer.from(String(b.tx || ''), 'base64')); } catch(e){ return reply(400, { error:'bad transaction' }); }
+    if (tx.serializeMessage().toString('base64') !== p.message) return reply(400, { error:'transaction was changed' });
+    if (!tx.verifySignatures()) return reply(401, { error:'missing wallet signature' });
+    pendingSwaps.delete(b.id);
+    try { const txid = await conn.sendRawTransaction(tx.serialize()); await conn.confirmTransaction(txid, 'confirmed'); return reply(200, { ok:true, txid }); }
+    catch(e){ console.error('swap failed', e.message); return reply(502, { error:'the swap failed on X1' }); }
+  }
+  return false;
+}
+
+/* ---------- Achievement badges: free soulbound NFTs for milestones ---------- */
+// Eligibility comes from the stats this server has already validated during profile syncs.
+const BADGES = [
+  { id:'level10', name:'Level 10', test:s => s.level >= 10, desc:'Reached level 10.' },
+  { id:'level25', name:'Level 25', test:s => s.level >= 25, desc:'Reached level 25.' },
+  { id:'level50', name:'Level 50 Elite', test:s => s.level >= 50, desc:'Reached the level cap.' },
+  { id:'wave10', name:'Wave 10 Survivor', test:s => s.bestWave >= 10, desc:'Survived to wave 10.' },
+  { id:'wave20', name:'Wave 20 Legend', test:s => s.bestWave >= 20, desc:'Survived to wave 20.' },
+  { id:'kills500', name:'500 Kills', test:s => s.kills >= 500, desc:'500 raiders down.' },
+  { id:'kills2500', name:'2,500 Kills', test:s => s.kills >= 2500, desc:'2,500 raiders down.' },
+  { id:'heads100', name:'Sharpshooter', test:s => s.headshots >= 100, desc:'100 headshots.' },
+  { id:'heads500', name:'Deadeye', test:s => s.headshots >= 500, desc:'500 headshots.' }
+];
+const BADGE_BY_ID = Object.fromEntries(BADGES.map(b => [b.id, b]));
+function badgeSvg(b){
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><radialGradient id="g" cx=".5" cy=".4" r=".7"><stop offset="0" stop-color="#3b2a10"/><stop offset="1" stop-color="#0b0b12"/></radialGradient></defs><rect width="512" height="512" rx="30" fill="url(#g)"/>
+<polygon points="256,70 410,150 410,330 256,420 102,330 102,150" fill="#1a1a24" stroke="#f0a93b" stroke-width="10"/><text x="256" y="250" text-anchor="middle" font-family="Arial Black,Arial" font-size="44" fill="#f0a93b">${esc(b.name.toUpperCase())}</text>
+<text x="256" y="300" text-anchor="middle" font-family="Arial" font-size="24" fill="#f4ecdc">${esc(b.desc)}</text><text x="256" y="470" text-anchor="middle" font-family="Arial" font-size="22" fill="#f0a93b">DUST YARD ACHIEVEMENT</text></svg>`;
+}
+async function badgesRoute(req, res, q, reply, conn, store, send){
+  if (req.method === 'GET' && q.pathname === '/api/badges'){
+    const w = q.searchParams.get('wallet'), p = store.profiles[w]; if (!isB58(w)) return reply(400, { error:'bad wallet' });
+    const owned = (items.badges || {})[w] || {};
+    return reply(200, { synced:!!p, badges:BADGES.map(b => ({ id:b.id, name:b.name, desc:b.desc, eligible:!!(p && b.test(p.summary)), claimed:!!owned[b.id], mint:owned[b.id] || null })) });
+  }
+  const art = q.pathname.match(/^\/badge-art\/([a-z0-9]+)\.svg$/);
+  if (req.method === 'GET' && art && BADGE_BY_ID[art[1]]) return reply(200, badgeSvg(BADGE_BY_ID[art[1]]), 'image/svg+xml');
+  const meta = q.pathname.match(/^\/badge\/([a-z0-9]+)\/([1-9A-HJ-NP-Za-km-z]{32,44})\.json$/);
+  if (req.method === 'GET' && meta && BADGE_BY_ID[meta[1]]){ const b = BADGE_BY_ID[meta[1]]; return reply(200, { name:`Dust Yard: ${b.name}`, symbol:'DYA', description:`${b.desc} Soulbound achievement earned in Dust Yard.`, image:`${PUBLIC_URL}/badge-art/${b.id}.svg`, attributes:[{ trait_type:'achievement', value:b.id }, { trait_type:'owner', value:meta[2] }] }); }
+  if (req.method === 'POST' && q.pathname === '/api/badges/claim'){
+    let raw = ''; for await (const c of req){ raw += c; if (raw.length > 3000) return reply(413, { error:'too large' }); }
+    const r = JSON.parse(raw || '{}'), b = BADGE_BY_ID[r.id], p = store.profiles[r.wallet];
+    if (!b || !isB58(r.wallet) || Math.abs(Date.now() - r.ts) > 300000) return reply(400, { error:'bad request' });
+    const msg = `Dust Yard achievement claim\nWallet: ${r.wallet}\nAchievement: ${b.id}\nIssued At: ${r.ts}`;
+    if (!nacl.sign.detached.verify(Buffer.from(msg), bs58.decode(r.sig || '1'), bs58.decode(r.wallet))) return reply(401, { error:'signature did not verify' });
+    if (!p || !b.test(p.summary)) return reply(403, { error:'not earned yet. Sync your profile NFT first' });
+    items.badges = items.badges || {}; const owned = items.badges[r.wallet] = items.badges[r.wallet] || {};
+    if (owned[b.id]) return reply(409, { error:'already claimed' });
+    owned[b.id] = 'pending'; saveItems();
+    try {
+      const mintKp = Keypair.generate(), owner = new PublicKey(r.wallet);
+      const fields = { achievement:b.id, earned:String(Math.floor(Date.now()/1000)), level:String(p.summary.level), fingerprint:p.fingerprint || '', kills:'', headshots:'', best_wave:'', perks:'', rank:'', updated:'' };
+      const built = await buildMint({ server:serverKey, mint:mintKp, owner, username:p.summary.username, fields, rent:n => conn.getMinimumBalanceForRentExemption(n),
+        name:`Dust Yard: ${b.name}`.slice(0, 32), symbol:'DYA', uri:`${PUBLIC_URL}/badge/${b.id}/${r.wallet}.json`, fieldOrder:['achievement', 'earned', 'level'] });
+      await send(built); owned[b.id] = mintKp.publicKey.toBase58(); saveItems();
+      return reply(200, { ok:true, mint:owned[b.id] });
+    } catch(e){ console.error('badge mint failed', e.message); delete owned[b.id]; saveItems(); return reply(500, { error:'mint failed, try again' }); }
+  }
+  return false;
+}
+
 /* ---------- HTTP API ---------- */
 async function main(){
   if (process.argv.includes('--dry-run')) return dryRun();
@@ -527,6 +684,12 @@ async function main(){
           image:`${PUBLIC_URL}/card/${card[1]}.svg`, attributes:Object.entries(fieldsFor(p.summary, p.fingerprint)).map(([trait_type, value]) => ({ trait_type, value })) });
       }
       const q = new URL(req.url, 'http://x');
+      if (q.pathname.startsWith('/api/swap/')){
+        try { const handled = await swapRoute(req, res, q, reply, conn); if (handled !== false) return; } catch(e){ console.error('swap error', e.message); return reply(400, { error:'swap unavailable right now' }); }
+      }
+      if (q.pathname.startsWith('/api/badges') || q.pathname.startsWith('/badge')){
+        try { const handled = await badgesRoute(req, res, q, reply, conn, store, send); if (handled !== false) return; } catch(e){ return reply(400, { error:'bad request' }); }
+      }
       if (q.pathname.startsWith('/api/market/')){
         try { const handled = await marketRoute(req, res, q, reply, conn); if (handled !== false) return; } catch(e){ console.error('market error', e.message); return reply(400, { error:'bad request' }); }
       }
