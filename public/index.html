@@ -266,6 +266,20 @@ body.touch #acctChip{ top:auto; bottom:calc(16px + env(safe-area-inset-bottom,0p
 #score{ font-size:34px; font-weight:700; line-height:1; }
 #feed{ margin-top:8px; display:flex; flex-direction:column; gap:3px; align-items:flex-end; font-size:17px; font-weight:600; }
 #feed div{ transition:opacity .5s; } #feed div.out{ opacity:0; } #feed .hs{ color:var(--amber); }
+#tdmBar{ position:fixed; top:calc(14px + env(safe-area-inset-top,0px)); left:50%; transform:translateX(-50%); z-index:6; display:flex; align-items:center; gap:14px; font-family:'Barlow Condensed',sans-serif; pointer-events:none; }
+#tdmBar[hidden]{ display:none; } .tdmSide{ width:150px; } .tdmSide b{ font-size:13px; letter-spacing:.1em; opacity:.8; } .tdmSide em{ display:block; font-style:normal; font-weight:700; font-size:26px; line-height:1; }
+.tdmSide.us{ text-align:right; color:#7fc4ff; } .tdmSide.them{ color:#ff7a6b; } .tdmTrack{ height:4px; background:rgba(255,255,255,.15); border-radius:2px; margin-top:3px; overflow:hidden; }
+.tdmSide.us .tdmTrack i{ display:block; height:100%; background:#7fc4ff; margin-left:auto; } .tdmSide.them .tdmTrack i{ display:block; height:100%; background:#ff7a6b; }
+#tdmTime{ font-size:24px; font-weight:700; background:rgba(0,0,0,.55); padding:4px 12px; border-radius:6px; color:var(--paper); }
+body.tdm #waveInfo, body.tdm #bossBar{ display:none !important; }
+#deathFlash{ position:fixed; inset:0; z-index:7; pointer-events:none; opacity:0; background:radial-gradient(circle, rgba(80,0,0,.35), rgba(0,0,0,.9)); display:flex; align-items:center; justify-content:center; font:700 30px 'Barlow Condensed',sans-serif; color:#ffb4a8; letter-spacing:.05em; }
+#deathFlash.go{ animation:deathFade 1.4s ease-out; } @keyframes deathFade{ 0%{ opacity:1; } 55%{ opacity:.9; } 100%{ opacity:0; } }
+#scoreboard{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:25; width:min(560px,92vw); background:rgba(12,12,18,.94); border:1px solid rgba(244,236,220,.25); border-radius:8px; padding:16px 20px; font-family:'Barlow Condensed',sans-serif; }
+#scoreboard h3{ margin:0 0 10px; font-size:24px; display:flex; justify-content:space-between; } #scoreboard h3 span{ opacity:.7; }
+.sbTeam{ display:flex; justify-content:space-between; font-size:20px; padding:6px 10px; border-radius:4px; } .sbTeam em{ font-style:normal; font-weight:700; }
+.sbTeam.us{ background:rgba(79,157,255,.25); } .sbTeam.them{ background:rgba(255,90,70,.22); margin-top:10px; }
+#scoreboard table{ width:100%; border-collapse:collapse; font-size:17px; margin-top:4px; } #scoreboard th{ text-align:left; opacity:.6; font-weight:600; padding:4px 8px; } #scoreboard td{ padding:4px 8px; border-top:1px solid rgba(244,236,220,.08); }
+#scoreboard tr.me td{ color:#ffd36b; } #scoreboard p{ margin:10px 0 0; opacity:.7; font-size:15px; }
 #cross{ position:fixed; left:50%; top:50%; --gap:10px; transition:opacity .12s; }
 #cross i{ position:absolute; background:var(--paper); box-shadow:0 0 2px rgba(0,0,0,.9); }
 #cross .t,#cross .b{ width:2px; height:9px; left:-1px; }
@@ -276,7 +290,7 @@ body.touch #acctChip{ top:auto; bottom:calc(16px + env(safe-area-inset-bottom,0p
 #hitm i{ position:absolute; left:-1px; top:-4px; width:2px; height:9px; background:#fff; box-shadow:0 0 2px rgba(0,0,0,.8); }
 #hitm i:nth-child(1){ transform:rotate(45deg) translateY(-13px); } #hitm i:nth-child(2){ transform:rotate(135deg) translateY(-13px); }
 #hitm i:nth-child(3){ transform:rotate(225deg) translateY(-13px); } #hitm i:nth-child(4){ transform:rotate(315deg) translateY(-13px); }
-#hitm.kill i{ background:var(--danger); }
+#hitm.kill i{ background:var(--danger); } #hitm.head i{ background:#ffd36b; }
 #banner{ position:fixed; top:22%; left:0; right:0; text-align:center; font-family:'Saira Stencil One','Barlow Condensed',sans-serif;
   font-size:clamp(34px,6vw,64px); color:var(--paper); opacity:0; }
 #banner.show{ animation:banner 2.4s ease forwards; }
@@ -359,6 +373,8 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
   <div id="scoreBox"><div id="score">0</div><div id="feed"></div></div>
   <div id="cross"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
   <div id="hitm"><i></i><i></i><i></i><i></i></div>
+  <div id="tdmBar" hidden><div class="tdmSide us"><b>YOU</b><em id="tdmUs">0</em><div class="tdmTrack"><i id="tdmUsBar"></i></div></div><span id="tdmTime">10:00</span><div class="tdmSide them"><b>RAIDERS</b><em id="tdmThem">0</em><div class="tdmTrack"><i id="tdmThemBar"></i></div></div></div>
+  <div id="deathFlash"></div>
   <div id="banner"></div>
   <div id="health"><span id="lvBadge">1</span><div id="hpBar"><div id="hpFill"></div></div><span id="hpNum">100</span></div>
   <div id="ammo"><div id="slots"><span><kbd>1</kbd>Rifle</span><span><kbd>2</kbd>SMG</span><span><kbd>3</kbd>Shotgun</span><span><kbd>4</kbd>Sniper</span><span><kbd>5</kbd>Pistol</span><span><kbd>6</kbd>RPG</span></div><div id="wname">KR-7 Carbine</div><div><span id="ammoNum">30</span><span id="ammoMax">/ 30</span></div><div id="pips"></div><div id="reloadHint"></div><div id="equip"><span id="eqFrag"></span><span id="eqTac"></span></div></div>
@@ -404,6 +420,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
     <p class="pick">Choose a mode.</p>
     <div class="loadout maps" id="modePick">
       <button data-g="waves"><b>Wave Survival</b><span>Hold out as long as you can</span></button>
+      <button data-g="tdm"><b>Team Deathmatch</b><span>Respawns, first to 7,500</span></button>
       <button data-g="gungame"><b>Gun Game</b><span>A new gun with every kill</span></button>
     </div>
     <p class="pick">Choose your starting weapon. You can switch any time in the game.</p>
@@ -469,7 +486,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
     <div id="acctBody"></div>
   </section>
   <section id="overPanel" hidden>
-    <h2>Overrun</h2>
+    <h2 id="overTitle">Overrun</h2>
     <div class="bigscore" id="finalScore">0</div>
     <p class="stat" id="finalStat"></p>
     <p class="stat" id="xpLine"></p>
@@ -526,6 +543,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
 <button id="acctChip" type="button" hidden><span class="chipText"><b class="chipName">Guest</b><span class="chipSub">Playing as guest</span></span><em class="chipAct">Sign in</em></button>
 <div id="loginPanel" hidden><h2>Sign in</h2><div id="lgBody"></div><p id="lgMsg"></p></div>
 <div id="ggLine"></div>
+<div id="scoreboard" hidden></div>
 <div id="toast"></div>
 <button id="phoneChip" class="hubOnly" type="button"><kbd id="phoneKey">Q</kbd> Phone</button>
 <div id="fps" hidden></div>
@@ -10557,6 +10575,78 @@ function updateWeapon(dt){
   if (firing && (W.auto || fireQueued) && canFire()){ shoot(); fireQueued = false; }
   if (!firing && T - lastShot > 0.25) shotsInRow = 0;
 }
+/* ---------- Team Deathmatch (you and your companion vs a raider squad) ---------- */
+const TDM_LIMIT = 7500, TDM_TIME = 600, TDM_SQUAD = 6;
+let tdm = null, tabHeld = false;
+function tdmStart(){
+  tdm = { us:0, them:0, t:TDM_TIME, deaths:0, kills:0, petKills:0, spawnT:.5, over:false, protT:3, streakBest:0 };
+  document.body.classList.add('tdm'); $('tdmBar').hidden = false; tdmHud();
+  banner('Team Deathmatch'); toast(`First team to ${TDM_LIMIT.toLocaleString()} points wins. 100 per kill. Hold Tab for the scoreboard.`, 5000);
+}
+function tdmPickType(){ const r = Math.random(); return r < .7 ? 'grunt' : r < .9 ? 'rusher' : 'sniper'; }
+function updateTDM(dt){
+  if (!tdm || tdm.over) return;
+  tdm.t -= dt; if (tdm.protT > 0) tdm.protT -= dt;
+  const alive = enemies.filter(e => e.alive).length;
+  tdm.spawnT -= dt;
+  if (alive < TDM_SQUAD && tdm.spawnT <= 0){ const e = spawnEnemy(tdmPickType()); e.speed = 4 + Math.random()*.6; tdm.spawnT = alive < 3 ? .4 : 1.4; }
+  // clear corpses so the squad keeps respawning
+  for (let i=enemies.length-1;i>=0;i--){ const e = enemies[i]; if (!e.alive && e.dieT > 6){ scene.remove(e.g); if (e.glint) scene.remove(e.glint); if (e.callSpr) scene.remove(e.callSpr); enemies.splice(i,1); } }
+  tdmHud();
+  const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null, padBoard = !!(gp && gp.buttons[8] && gp.buttons[8].pressed);
+  if (padBoard !== tdm.padBoard){ tdm.padBoard = padBoard; showBoard(padBoard || tabHeld); } else if (tabHeld && !$('scoreboard').hidden) showBoard(true);
+  if (tdm.us >= TDM_LIMIT) tdmEnd(true); else if (tdm.them >= TDM_LIMIT) tdmEnd(false);
+  else if (tdm.t <= 0) tdmEnd(tdm.us > tdm.them ? true : tdm.us < tdm.them ? false : null);
+}
+function tdmHud(){
+  const m = Math.max(0, Math.ceil(tdm.t)), lead = tdm.us >= tdm.them;
+  $('tdmUs').textContent = tdm.us.toLocaleString(); $('tdmThem').textContent = tdm.them.toLocaleString();
+  $('tdmTime').textContent = `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+  $('tdmUsBar').style.width = (tdm.us/TDM_LIMIT*100) + '%'; $('tdmThemBar').style.width = (tdm.them/TDM_LIMIT*100) + '%';
+  $('tdmBar').classList.toggle('losing', !lead);
+}
+function tdmKill(src){
+  if (!tdm || tdm.over) return;
+  tdm.us += 100; if (src === 'pet') tdm.petKills++; else tdm.kills++;
+  tdm.streakBest = Math.max(tdm.streakBest, streak);
+  if (tdm.us === TDM_LIMIT - 1000) { toast('1,000 points to win', 2500); }
+}
+function tdmDeath(from){
+  tdm.them += 100; tdm.deaths++;
+  // respawn far from raiders, MW2 style: brief fade, full health, short spawn protection
+  let best = spawnPts[0], bd = -1;
+  for (const s of spawnPts){ let md = 1e9; for (const e of enemies) if (e.alive) md = Math.min(md, Math.hypot(e.pos.x - s[0], e.pos.z - s[1])); if (md > bd){ bd = md; best = s; } }
+  P.pos.set(best[0], 0, best[1]); P.vel.set(0,0,0); P.hp = maxHP(); P.lastHit = -99; P.slideT = 0; P.ladder = null; P.onGround = true;
+  let nx = 0, nz = 0, n = 0; for (const e of enemies) if (e.alive){ nx += e.pos.x; nz += e.pos.z; n++; }
+  if (n) P.yaw = Math.atan2(-(nx/n - P.pos.x), -(nz/n - P.pos.z));
+  WEAPONS.forEach(W => { W.ammo = W.c.mag; W.reserve = Math.max(W.reserve, W.res); });
+  fragN = Math.max(fragN, perk('frag3') ? 3 : 2); tacN = Math.max(tacN, perk('tac3') ? 3 : 2);
+  streak = 0; tdm.protT = 3; reloading = false;
+  const d = $('deathFlash'); d.textContent = `Killed by ${from || 'Raider'} · respawning`; d.classList.remove('go'); void d.offsetWidth; d.classList.add('go');
+  tdmHud(); if (tdm.them >= TDM_LIMIT) tdmEnd(false);
+}
+function tdmEnd(win){
+  if (tdm.over) return; tdm.over = true;
+  banner(win === true ? 'Victory' : win === false ? 'Defeat' : 'Draw'); win ? sfx.levelUp() : sfx.horn();
+  if (win) giveXP(2500); else giveXP(1000);
+  tdm.result = win; score = tdm.us; wave = Math.min(10, 1 + Math.floor(tdm.kills/8));
+  setTimeout(() => { if (state === 'play' || state === 'paused') gameOver(); }, 2600);
+}
+function tdmStop(){ tdm = null; document.body.classList.remove('tdm'); $('tdmBar').hidden = true; $('scoreboard').hidden = true; }
+function showBoard(on){
+  const b = $('scoreboard'); if (!tdm || !on){ b.hidden = true; return; }
+  const kd = (tdm.kills/Math.max(1, tdm.deaths)).toFixed(2);
+  const rows = [[acctName(), tdm.kills, tdm.deaths, kd, tdm.kills*100, 'me']];
+  if (pet && petCfg) rows.push([petCfg.name, tdm.petKills, 0, '-', tdm.petKills*100, '']);
+  b.innerHTML = `<h3>Team Deathmatch <span>${$('tdmTime').textContent}</span></h3>
+  <div class="sbTeam us"><b>Your team</b><em>${tdm.us.toLocaleString()}</em></div>
+  <table><tr><th>Player</th><th>K</th><th>D</th><th>K/D</th><th>Score</th></tr>${rows.map(r => `<tr class="${r[5]}"><td>${escHTML(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td></tr>`).join('')}</table>
+  <div class="sbTeam them"><b>Raider squad</b><em>${tdm.them.toLocaleString()}</em></div>
+  <p>Best streak this match: ${Math.max(tdm.streakBest, streak)} · First to ${TDM_LIMIT.toLocaleString()}</p>`;
+  b.hidden = false;
+}
+function escHTML(s){ return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+
 function damageEnemy(e, dmg, head, dir, src, part, blast){
   if (!e.alive) return;
   if (e.type === 'armored' && !head && src !== 'knife' && src !== 'nade' && src !== 'air') dmg *= .5;
@@ -10577,7 +10667,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
   } else {
     e.deathType = src === 'nade' || src === 'air' || blast || dmg >= 120 ? 'blast' : head ? 'crumple' : Math.random() < .35 ? 'spin' : 'fall';
   }
-  showHitmarker(killed);
+  showHitmarker(killed, head);
   if (killed){
     e.alive = false; kills++; sfx.kill();
     e.fallDir = 1;
@@ -10600,7 +10690,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
     giveXP(xp);
     if (head && !src) addHeadshot(cur());
     if (src !== 'air' && src !== 'drone' && src !== 'pet') addStreakKill();
-    ggKill(src);
+    ggKill(src); if (gameMode === 'tdm') tdmKill(src);
     chalEvent('kill'); if (head && !src) chalEvent('head'); if (src === 'knife') chalEvent('knife'); if (src === 'nade'){ chalEvent('nade'); if (cur().rocket) chalEvent('rocket'); }
     if (src === 'pet') chalEvent('pet'); if (currentMap === 'neon') chalEvent('neonkill'); if (!src && cur().id === 'pistol') chalEvent('pistol'); if (e.type === 'boss') chalEvent('boss');
     dropLoot(e);
@@ -10615,6 +10705,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
 function damagePlayer(d, from, explosive){
   if (hubMode) return;
   if (state !== 'play') return;
+  if (tdm && (tdm.protT > 0 || tdm.over)) return;
   if (explosive && perk('armor')) d *= .65;
   P.hp -= d; P.lastHit = T; sfx.hurt(); rumble(.8, .3, 160);
   if (P.hp < 30 && streak > 0){ streak = 0; feed('Streak lost (health too low)'); }
@@ -10625,13 +10716,13 @@ function damagePlayer(d, from, explosive){
   $('dmgLayer').appendChild(el);
   requestAnimationFrame(() => requestAnimationFrame(() => { el.style.opacity = '0'; }));
   setTimeout(() => el.remove(), 1100);
-  if (P.hp <= 0){ P.hp = 0; gameOver(); }
+  if (P.hp <= 0){ P.hp = 0; if (gameMode === 'tdm' && tdm && !tdm.over){ tdmDeath(); return; } gameOver(); }
 }
 
 /* ---------- HUD ---------- */
 let vigPulse = 0, hitT = 0;
 const hud = { score:-1, ammo:-1, hp:-1, left:-1, wave:-1, hint:null };
-function showHitmarker(kill){ const h = $('hitm'); h.classList.toggle('kill', kill); h.style.opacity = '1'; hitT = kill ? 0.22 : 0.12; }
+function showHitmarker(kill, head){ const h = $('hitm'); h.classList.toggle('kill', kill); h.classList.toggle('head', !!head && !kill); tone(kill ? 1900 : 2600, .03, kill ? .08 : .05, 'square'); h.style.opacity = '1'; hitT = kill ? 0.22 : 0.12; }
 function feed(text, hs){
   const f = $('feed'); const d = document.createElement('div'); d.textContent = text; if (hs) d.className = 'hs';
   f.prepend(d); while (f.children.length > 5) f.lastChild.remove();
@@ -10881,7 +10972,7 @@ function update(dt){
   for (const e of enemies) updateEnemy(e, dt);
   separateEnemies();
   enemies = enemies.filter(e => !e.gone);
-  if (hubMode) updateHub(dt); else { updateWaves(dt); updatePet(dt); petCombat(dt); updateRockets(dt); updateShogunStars(dt); }
+  if (hubMode) updateHub(dt); else { if (gameMode === 'tdm') updateTDM(dt); else updateWaves(dt); updatePet(dt); petCombat(dt); updateRockets(dt); updateShogunStars(dt); }
 
   // viewmodel: position, bob, sway, inertia, recoil, reload, actions
   const W = cur(), V = W.vm;
@@ -11016,7 +11107,7 @@ function startGame(fromPad){
   if (fromPad !== true) setPadActive(false);
   setMap(selectedMap); initAudio(); resetGame();
   state = 'play'; show(null); $('hud').hidden = false; $('touch').hidden = !isTouch;
-  startWave(); summonPet(); matchStart(); $('ggLine').textContent = ''; if (gameMode === 'gungame') ggStart(); if (pet) setTimeout(() => petSay('LFG'), 1200); if (fromPad !== true) requestLock();
+  tdmStop(); if (gameMode === 'tdm'){ wave = 1; tdmStart(); } else startWave(); summonPet(); matchStart(); $('ggLine').textContent = ''; if (gameMode === 'gungame') ggStart(); if (pet) setTimeout(() => petSay('LFG'), 1200); if (fromPad !== true) requestLock();
   toast(isTouch ? 'Tap Swap or the weapon bar to change guns' : padActive ? 'Press Triangle to switch weapons' : 'Press 1 to 6 (or scroll) to switch weapons', 5000);
 }
 function pause(){
@@ -11028,7 +11119,7 @@ function pause(){
   setTimeout(() => { if (state === 'paused') maybePrompt(); }, 400);
 }
 function resume(fromPad){ if (padClicking) fromPad = true; state = 'play'; show(null); $('touch').hidden = !isTouch; initAudio(); if (fromPad !== true){ setPadActive(false); requestLock(); } }
-function toMenu(){ leaveHub(); removePet(); $('ggLine').textContent = ''; try { loadDaily(); renderDailyBox(); } catch(e){} state = 'menu'; clearEnemies(); $('hud').hidden = true; $('touch').hidden = true; $('bestLine').textContent = bestText(); show('menu'); setTimeout(() => maybePrompt(), 600); }
+function toMenu(){ leaveHub(); removePet(); tdmStop(); $('ggLine').textContent = ''; try { loadDaily(); renderDailyBox(); } catch(e){} state = 'menu'; clearEnemies(); $('hud').hidden = true; $('touch').hidden = true; $('bestLine').textContent = bestText(); show('menu'); setTimeout(() => maybePrompt(), 600); }
 /* ---------- Shared leaderboard ---------- */
 let lbDb = null, lbId = null, lastGame = null, lbRows = [];
 (async () => {
@@ -13125,7 +13216,7 @@ function updateShogunStars(dt){
 }
 
 /* ---------- Gun Game mode ---------- */
-let gameMode = store.get('dustyard-mode') === 'gungame' ? 'gungame' : 'waves';
+let gameMode = ['gungame','tdm'].includes(store.get('dustyard-mode')) ? store.get('dustyard-mode') : 'waves';
 const GG_ORDER = ['pistol', 'smg', 'shotgun', 'rifle', 'sniper', 'launcher', 'knife'];
 let gg = { level:0, start:0, done:false };
 function ggWeaponIndex(id){ return WEAPONS.findIndex(W => W.id === id); }
@@ -13184,6 +13275,8 @@ function renderPortfolio(body){
 
 function gameOver(){
   $('ggLine').textContent = '';
+  $('overTitle').textContent = tdm ? (tdm.result === true ? 'Victory' : tdm.result === false ? 'Defeat' : 'Match over') : 'Overrun';
+  if (tdm){ const t = tdm; setTimeout(() => { $('finalStat').textContent = `Team ${t.us.toLocaleString()} – ${t.them.toLocaleString()} Raiders · ${t.kills} kills, ${t.deaths} deaths, K/D ${(t.kills/Math.max(1,t.deaths)).toFixed(2)}`; }, 0); $('tdmBar').hidden = true; $('scoreboard').hidden = true; }
   lastGame = { score, wave, map:currentMap };
   $('dropBox').innerHTML = ''; matchEnd().then(d => { if (d.length){ renderDropsInto($('dropBox'), d, 'You found:'); sfx.levelUp(); } });
   const cc = cardOwned(); $('ovCard').innerHTML = ''; if (cc) $('ovCard').appendChild(drawCallingCard(cc, acctName()));
@@ -13267,7 +13360,8 @@ addEventListener('keydown', e => {
     if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   } else if (state === 'paused' && e.code === 'KeyP') resume();
 });
-addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'KeyG' || e.code === 'KeyQ') releaseNade(); });
+addEventListener('keydown', e => { if (e.code === 'Tab' && tdm && state === 'play'){ e.preventDefault(); tabHeld = true; showBoard(true); } }, true);
+addEventListener('keyup', e => { if (e.code === 'Tab'){ tabHeld = false; showBoard(false); } keys[e.code] = false; if (e.code === 'KeyG' || e.code === 'KeyQ') releaseNade(); });
 addEventListener('blur', () => { if (state === 'play' && !uiOpen) pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pause(); });
 
