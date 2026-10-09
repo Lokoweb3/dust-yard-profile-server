@@ -182,6 +182,7 @@ body.hub #ammo, body.hub #streaks, body.hub #waveInfo, body.hub #bossBar, body.h
 .phGal{ display:grid; grid-template-columns:1fr 1fr; gap:8px; } .phNft{ background:rgba(244,236,220,.06); border:1px solid rgba(244,236,220,.18); border-radius:10px; padding:5px; color:var(--paper); cursor:pointer; font:600 13px 'Barlow Condensed',sans-serif; text-align:left; display:flex; flex-direction:column; gap:4px; }
 .phNft img{ width:100%; aspect-ratio:1; object-fit:cover; border-radius:7px; display:block; background:#111; } .phNftBig{ width:100%; aspect-ratio:1; object-fit:cover; border-radius:12px; background:#111; }
 .phGrid{ grid-template-columns:repeat(3,1fr) !important; } .phApp span{ width:56px !important; height:56px !important; font-size:28px !important; }
+#phBody #brUrl{ width:100%; box-sizing:border-box; } .phBtn.phX{ flex:0 0 44px !important; }
 .phTitle2{ font-size:17px; font-weight:700; margin:4px 0 0; } .phWarn2{ font-size:14px; color:#ffcf8a; margin:0; } .phBtn.phDanger{ color:#ff8a8a; border-color:rgba(255,120,120,.4); }
 .phWords{ display:grid; grid-template-columns:1fr 1fr; gap:5px 10px; background:rgba(0,0,0,.35); border:1px solid rgba(244,236,220,.2); border-radius:12px; padding:10px; user-select:none; }
 .phWords div{ display:flex; gap:6px; font-size:16px; } .phWords span{ opacity:.55; min-width:22px; text-align:right; } .phWords b{ font-weight:600; } .phMsg{ font-size:14px; color:#9cc3ff; margin:0; } .phWarn{ font-size:12px; color:#ffcf8a; margin:auto 0 0; }
@@ -245,6 +246,10 @@ input, textarea, select{ -webkit-user-select:text; user-select:text; -webkit-tou
 .lgBtn.main{ background:var(--amber); color:var(--ink); border-color:var(--amber); } .lgBtn.ghost{ background:none; } .lgBtn img{ width:24px; height:24px; border-radius:5px; }
 .lgSub{ font-size:16px; opacity:.85; margin:0 0 4px; } .lgName{ font-size:24px; font-weight:700; margin:0; } .lgOk{ color:#5cff8a; font-size:16px; margin:0; } .lgWarn{ color:#ffcf8a; font-size:15px; margin:0; } #lgMsg{ font-size:15px; color:#9cc3ff; min-height:18px; margin:10px 0 0; }
 body.touch #acctChip{ top:auto; bottom:calc(16px + env(safe-area-inset-bottom,0px)); }
+#dailyBox{ max-width:560px; margin:-8px 0 18px; background:rgba(20,18,30,.55); border:1px solid rgba(244,236,220,.22); border-radius:6px; padding:10px 14px; }
+#dailyBox b{ display:block; font-size:18px; color:var(--amber); margin-bottom:4px; } #dailyBox small{ display:block; font-size:13px; opacity:.65; margin-top:4px; }
+.dailyRow{ position:relative; display:flex; justify-content:space-between; font-size:16px; padding:3px 0 6px; } .dailyRow i{ position:absolute; left:0; bottom:1px; height:3px; background:#6fa8ff; border-radius:2px; }
+.dailyRow.done{ color:#5cff8a; } .dailyRow.done i{ background:#5cff8a; } .dailyRow em{ font-style:normal; opacity:.8; }
 #scoreBox{ position:fixed; top:calc(14px + env(safe-area-inset-top,0px)); right:calc(20px + env(safe-area-inset-right,0px)); text-align:right; }
 #score{ font-size:34px; font-weight:700; line-height:1; }
 #feed{ margin-top:8px; display:flex; flex-direction:column; gap:3px; align-items:flex-end; font-size:17px; font-weight:600; }
@@ -344,7 +349,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
   <div id="hitm"><i></i><i></i><i></i><i></i></div>
   <div id="banner"></div>
   <div id="health"><span id="lvBadge">1</span><div id="hpBar"><div id="hpFill"></div></div><span id="hpNum">100</span></div>
-  <div id="ammo"><div id="slots"><span><kbd>1</kbd>Rifle</span><span><kbd>2</kbd>SMG</span><span><kbd>3</kbd>Shotgun</span><span><kbd>4</kbd>Sniper</span><span><kbd>5</kbd>Pistol</span></div><div id="wname">KR-7 Carbine</div><div><span id="ammoNum">30</span><span id="ammoMax">/ 30</span></div><div id="pips"></div><div id="reloadHint"></div><div id="equip"><span id="eqFrag"></span><span id="eqTac"></span></div></div>
+  <div id="ammo"><div id="slots"><span><kbd>1</kbd>Rifle</span><span><kbd>2</kbd>SMG</span><span><kbd>3</kbd>Shotgun</span><span><kbd>4</kbd>Sniper</span><span><kbd>5</kbd>Pistol</span><span><kbd>6</kbd>RPG</span></div><div id="wname">KR-7 Carbine</div><div><span id="ammoNum">30</span><span id="ammoMax">/ 30</span></div><div id="pips"></div><div id="reloadHint"></div><div id="equip"><span id="eqFrag"></span><span id="eqTac"></span></div></div>
   <div id="flashOv"></div>
   <div id="plazaCount" class="hubOnly"></div>
   <div id="hubPrompt" class="hubOnly" hidden>Press E to open the market</div>
@@ -378,6 +383,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
     <h1>Dust Yard</h1>
     <p class="lede">Hold the container yard against waves of raiders. Each wave is bigger than the last.</p>
     <div class="prof"><div><b id="profHead">Level 1 Recruit</b><div class="profBar"><i id="profFill"></i></div><span id="profSub"></span></div></div>
+    <div id="dailyBox"></div>
     <p class="pick">Choose your map.</p>
     <div class="loadout maps" id="mapPick">
       <button data-m="yard"><b>Dust Yard</b><span>Shipping yard at dusk</span></button>
@@ -400,7 +406,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
       <kbd>Shift</kbd><span>Sprint</span>
       <kbd>Space</kbd><span>Jump</span>
       <kbd>C</kbd><span>Crouch, or slide while sprinting</span>
-      <kbd>1 – 5</kbd><span>Rifle, SMG, shotgun, sniper, pistol (or mouse wheel)</span>
+      <kbd>1 – 6</kbd><span>Rifle, SMG, shotgun, sniper, pistol, RPG launcher (or mouse wheel)</span>
       <kbd>G</kbd><span>Hold to aim a frag grenade, release to throw</span>
       <kbd>Q</kbd><span>Throw tactical (T switches smoke and flashbang)</span>
       <kbd>V</kbd><span>Knife attack</span>
@@ -8852,7 +8858,8 @@ const WEAPONS = [
   { id:'smg', name:'VX-9 SMG', mag:32, rof:.066, auto:true, dmg:25, head:70, legs:20, range:22, pellets:1, hip:.008, ads:.0035, move:.01, bloom:.0015, kickV:.0065, kickH:.006, vkick:.032, reload:1.6, adsFov:58, build:buildSMG },
   { id:'shotgun', name:'M-12 Pump', mag:6, rof:.85, auto:false, dmg:22, head:32, legs:18, range:12, pellets:9, hip:.055, ads:.042, move:.008, bloom:0, kickV:.045, kickH:.012, vkick:.11, shellReload:.55, adsFov:62, action:'pump', actionTime:.55, build:buildShotgun },
   { id:'sniper', name:'LR-50 Marksman', mag:5, rof:1.25, auto:false, dmg:150, head:300, legs:110, range:300, pellets:1, hip:.06, ads:0, move:.03, bloom:0, kickV:.05, kickH:.006, vkick:.12, reload:2.6, adsFov:16, scope:true, action:'bolt', actionTime:1.05, build:buildSniper },
-  { id:'pistol', name:'P-11 Sidearm', mag:12, rof:.13, auto:false, dmg:40, head:100, legs:30, range:28, pellets:1, hip:.012, ads:.003, move:.008, bloom:.003, kickV:.018, kickH:.006, vkick:.06, reload:1.25, adsFov:62, build:buildPistol }
+  { id:'pistol', name:'P-11 Sidearm', mag:12, rof:.13, auto:false, dmg:40, head:100, legs:30, range:28, pellets:1, hip:.012, ads:.003, move:.008, bloom:.003, kickV:.018, kickH:.006, vkick:.06, reload:1.25, adsFov:62, build:buildPistol },
+  { id:'launcher', name:'RPG-X Launcher', mag:1, rof:.9, auto:false, dmg:0, head:0, legs:0, range:100, pellets:1, hip:.02, ads:.004, move:.02, bloom:0, kickV:.07, kickH:.012, vkick:.16, reload:2.3, adsFov:55, rocket:true, build:buildLauncher }
 ];
 for (const W of WEAPONS){
   W.ammo = W.mag;
@@ -8875,6 +8882,128 @@ function reloadKeys(t){ return [[0,[0,0,0]],[.16,[t.x,t.y,t.z]],[.3,[t.x,t.y-.01
 const MKEYS = [[0,0],[.3,0],[.44,-.42],[.6,-.42],[.76,0],[1,0]];
 
 /* ---------- Sidearm ---------- */
+/* ---------- RPG-X launcher ---------- */
+function buildLauncher(){
+  const m = new THREE.Group(), L = new THREE.Group(), R = new THREE.Group(); m.add(L); m.add(R);
+  const olive = MS(0x4a5235, .7, .2);
+  zc(m, .048, .048, -.32, .5, .03, olive, 0, 20);                       // tube
+  zc(m, .056, .05, .44, .52, .03, mBlack, 0, 20);                         // front cone
+  zc(m, .058, .052, -.36, -.28, .03, mBlack, 0, 20);                      // rear bell
+  vp(m, Bx(.03,.09,.04), mPoly, 0,-.05,.03, .25);                         // rear grip
+  vp(m, Bx(.03,.08,.04), mPoly, 0,-.045,-.2, .15);                        // fore grip
+  vp(m, Bx(.04,.035,.09), mBlack, .055,.06,-.02);                         // side sight box
+  vp(m, Bx(.006,.012,.006), mBlack, .055,.085,-.06);
+  const rocketHead = new THREE.Mesh(new THREE.ConeGeometry(.04, .14, 14), MS(0x6b6f5a, .6, .3)); rocketHead.rotation.x = -HP; rocketHead.position.set(0,.03,-.57); m.add(rocketHead);
+  attachHand(m, R, gripHand(.017, 1, true), new V3(0,-.085,.03), -.25, new V3(.03,-.05,.045), new V3(.17,-.42,.42), false);
+  attachHand(m, L, gripHand(.017, -1, false), new V3(0,-.08,-.2), -.15, new V3(-.03,-.05,.045), new V3(-.24,-.36,.06), true);
+  return { model:m, left:L, right:R, mag:rocketHead, scale:1, sightY:.09, adsZ:-.38, hip:new V3(.2,-.17,-.5), sprint:new V3(.12,-.24,-.42),
+    muzzle:marker(m,0,.03,-.62), eject:marker(m,0,.03,.4), flash:muzzleFlash(m,new V3(0,.03,-.64),.9), magTarget:new V3(0,-.05,-.1), rocketHead, gripZ:.2, laserZ:.2 };
+}
+const rockets = [];
+const rocketMat = MS(0x6b6f5a, .6, .3);
+function fireRocket(W){
+  const dir = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
+  const start = camera.localToWorld(new V3(.16, -.08, -.7));
+  const g = new THREE.Group(); g.add(new THREE.Mesh(Cy(.035, .035, .3, 10), rocketMat).rotateX(HP));
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(.035, .1, 10), rocketMat); nose.rotation.x = -HP; nose.position.z = -.2; g.add(nose);
+  const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map:flashTex, color:0xffa040, blending:THREE.AdditiveBlending, transparent:true, depthWrite:false })); fl.position.z = .2; fl.scale.setScalar(.5); g.add(fl);
+  g.position.copy(start); g.lookAt(start.clone().add(dir)); g.rotateY(Math.PI); scene.add(g);
+  rockets.push({ g, pos:start.clone(), vel:dir.multiplyScalar(48), life:3, smokeT:0 });
+  sfx.boom(30); shake = Math.max(shake, .02); rumble(.9, .6, 160);
+}
+function rocketBlast(r, at, directHit){
+  scene.remove(r.g);
+  if (directHit && directHit.alive) damageEnemy(directHit, directHit.type === 'boss' ? 420 : 250, false, r.vel.clone().normalize(), 'nade');
+  explode(at.clone().setY(Math.max(.2, at.y)), { R:7 });
+}
+function updateRockets(dt){
+  for (let i=rockets.length-1;i>=0;i--){
+    const r = rockets[i], next = r.pos.clone().addScaledVector(r.vel, dt), seg = next.clone().sub(r.pos), len = seg.length(), dir = seg.clone().normalize();
+    r.life -= dt; r.smokeT -= dt;
+    if (r.smokeT <= 0){ r.smokeT = .03; spawnPuff(r.pos.clone(), 0x8a8478, .12, .6, .2); }
+    let hitAt = null, hitE = null;
+    const hh = humanHit(r.pos, dir); if (hh && hh.t <= len){ hitAt = hh.point; hitE = hh.enemy; }
+    if (!hitAt){ ray.set(r.pos, dir); ray.far = len; const hs = ray.intersectObjects(solids, false); if (hs.length) hitAt = hs[0].point; }
+    if (!hitAt && next.y < .05) hitAt = next.clone().setY(.05);
+    if (hitAt || r.life <= 0){ rocketBlast(r, hitAt || next, hitE); rockets.splice(i,1); continue; }
+    r.pos.copy(next); r.g.position.copy(next);
+  }
+}
+
+/* ---------- Daily challenges ---------- */
+const CHALLENGES = [
+  { id:'kills', text:'Get 60 kills', goal:60, ev:'kill' },
+  { id:'heads', text:'Get 15 headshots', goal:15, ev:'head' },
+  { id:'knife', text:'Get 3 knife kills', goal:3, ev:'knife' },
+  { id:'nades', text:'Get 5 explosive kills', goal:5, ev:'nade' },
+  { id:'boss', text:'Kill a Juggernaut', goal:1, ev:'boss' },
+  { id:'wave8', text:'Reach wave 8', goal:8, ev:'wave', max:true },
+  { id:'neon', text:'Get 25 kills on Neon District', goal:25, ev:'neonkill' },
+  { id:'pet', text:'Get 5 companion kills', goal:5, ev:'pet' },
+  { id:'air', text:'Call in an airstrike', goal:1, ev:'air' },
+  { id:'pistol', text:'Get 10 pistol kills', goal:10, ev:'pistol' },
+  { id:'rocket', text:'Get 4 launcher kills', goal:4, ev:'rocket' }
+];
+const CHAL_XP = 750, CHAL_BONUS = 1500;
+let daily = null;
+function dayKey(){ return new Date().toISOString().slice(0, 10); }
+function loadDaily(){
+  try { daily = JSON.parse(store.get('dy-daily') || 'null'); } catch(e){ daily = null; }
+  const today = dayKey();
+  if (!daily || daily.day !== today){
+    const prevDay = daily && daily.day, streak = daily && daily.allDone && prevDay === new Date(Date.now() - 864e5).toISOString().slice(0, 10) ? (daily.streak || 0) : (daily && prevDay === today ? daily.streak : 0);
+    let seed = hashStr(today), pool = CHALLENGES.slice(), pick = [];
+    while (pick.length < 3){ seed = (seed*1103515245 + 12345) >>> 0; pick.push(pool.splice(seed % pool.length, 1)[0].id); }
+    daily = { day:today, ids:pick, prog:{}, done:{}, allDone:false, streak };
+    saveDaily();
+  }
+  return daily;
+}
+function saveDaily(){ store.set('dy-daily', JSON.stringify(daily)); }
+function chalEvent(ev, n = 1){
+  if (!daily || daily.day !== dayKey()) loadDaily();
+  if (hubMode) return;
+  for (const id of daily.ids){
+    const c = CHALLENGES.find(x => x.id === id); if (!c || c.ev !== ev || daily.done[id]) continue;
+    daily.prog[id] = c.max ? Math.max(daily.prog[id] || 0, n) : (daily.prog[id] || 0) + n;
+    if (daily.prog[id] >= c.goal){
+      daily.done[id] = true; giveXP(CHAL_XP); feed(`Challenge complete: ${c.text}`, true); toast(`Daily challenge complete: ${c.text}. +${CHAL_XP} XP`, 3500); sfx.levelUp();
+      if (daily.ids.every(x => daily.done[x]) && !daily.allDone){ daily.allDone = true; daily.streak = (daily.streak || 0) + 1; giveXP(CHAL_BONUS); banner('All dailies done'); toast(`All daily challenges done. +${CHAL_BONUS} XP. Streak: ${daily.streak} day${daily.streak === 1 ? '' : 's'}`, 4500); }
+    }
+  }
+  saveDaily(); renderDailyBox();
+}
+function renderDailyBox(){
+  const box = $('dailyBox'); if (!box || !daily) return; box.innerHTML = '';
+  const h = document.createElement('b'); h.textContent = `Daily challenges${daily.streak ? `  · ${daily.streak}-day streak` : ''}`; box.appendChild(h);
+  for (const id of daily.ids){
+    const c = CHALLENGES.find(x => x.id === id), p = Math.min(c.goal, daily.prog[id] || 0), row = document.createElement('div'); row.className = 'dailyRow' + (daily.done[id] ? ' done' : '');
+    const t = document.createElement('span'); t.textContent = (daily.done[id] ? '✓ ' : '') + c.text; const n = document.createElement('em'); n.textContent = `${p}/${c.goal}`;
+    const bar = document.createElement('i'); bar.style.width = (p/c.goal*100) + '%'; row.append(t, n, bar); box.appendChild(row);
+  }
+  const f = document.createElement('small'); f.textContent = `+${CHAL_XP} XP each, +${CHAL_BONUS} XP for all three. New challenges every day.`; box.appendChild(f);
+}
+
+/* ---------- Emotes in the Degen Market ---------- */
+const EMOTES = [{ k:'wave', label:'👋', text:'waves' }, { k:'dance', label:'💃', text:'dances' }, { k:'salute', label:'🫡', text:'salutes' }, { k:'gm', label:'gm', text:'says gm' }];
+let myEmote = null;
+function doEmote(i){
+  if (!hubMode) return;
+  const e = EMOTES[i]; if (!e) return;
+  myEmote = { k:e.k, at:Date.now() }; presT = 0;
+  toast(`You ${e.text}`, 1400);
+  if (pet){ petSay(e.k === 'gm' ? 'gm!' : e.label); if (e.k === 'dance') pet.trick = 1; if (e.k === 'wave') pet.waveT = 1.4; }
+}
+function emoteBubble(a, k){
+  const e = EMOTES.find(x => x.k === k); if (!e) return;
+  if (a.emoteSpr) a.g.remove(a.emoteSpr);
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.arc(64, 58, 52, 0, Math.PI*2); g.fill();
+  g.font = k === 'gm' ? '700 52px "Barlow Condensed", Arial' : '64px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#1b1030'; g.fillText(e.label, 64, 62);
+  a.emoteSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false })); a.emoteSpr.scale.set(.7, .7, 1); a.emoteSpr.position.y = 2.75; a.g.add(a.emoteSpr); a.emoteT = 3;
+  if (k === 'dance') a.danceT = 3;
+}
+
 function buildPistol(){
   const m = new THREE.Group(), L = new THREE.Group(), R = new THREE.Group(); m.add(L); m.add(R);
   const slide = new THREE.Group(); m.add(slide);
@@ -9120,7 +9249,7 @@ const ATT = [
   { k:'mag', name:'Extended mag', unlock:9, desc:'+50% capacity' },
   { k:'supp', name:'Suppressor', unlock:14, desc:'Quiet, no muzzle flash' }
 ];
-const RES = { rifle:[90,210], smg:[96,224], shotgun:[18,42], sniper:[15,30], pistol:[36,84] };
+const RES = { rifle:[90,210], smg:[96,224], shotgun:[18,42], sniper:[15,30], pistol:[36,84], launcher:[3,8] };
 let gunSave = {}; try { gunSave = JSON.parse(store.get('dustyard-guns') || '{}') || {}; } catch(e){ gunSave = {}; }
 function saveGuns(){ const o = {}; WEAPONS.forEach(W => { o[W.id] = { kills:W.kills, att:W.att, hs:W.hs, camo:W.camo }; }); store.set('dustyard-guns', JSON.stringify(o)); }
 function addAttachVisuals(V){
@@ -9281,7 +9410,7 @@ function dropLoot(e){
   if (kind) spawnPickup(kind, x, z);
 }
 function autoSwitch(){
-  const order = [4, 0, 1, 2, 3].filter(i => i !== cw && WEAPONS[i].ammo + WEAPONS[i].reserve > 0);
+  const order = [4, 0, 1, 2, 3, 5].filter(i => i !== cw && WEAPONS[i].ammo + WEAPONS[i].reserve > 0);
   if (order.length){ toast('Out of ammo. Switching weapon.', 1500); selectWeapon(order[0]); }
   else toast('Out of ammo. Find ammo drops from enemies.', 2000);
 }
@@ -9483,6 +9612,7 @@ function makeJet(){
   return g;
 }
 function callAirstrike(p){
+  chalEvent('air');
   airAim = false; airMark.visible = false; sInv.air--;
   const dir = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)).normalize();
   const jet = makeJet(); jet.position.copy(p).addScaledVector(dir, -190); jet.position.y = 55;
@@ -10314,6 +10444,7 @@ function shoot(){
   if (reloading){ if (W.shellReload && W.ammo > 0) reloading = false; else return; }
   if (W.ammo <= 0){ lastShot = T; if (W.reserve > 0) reload(); else { sfx.click(); autoSwitch(); } return; }
   W.ammo--; lastShot = T; shotsInRow++; inspectT = 0;
+  if (W.rocket){ fireRocket(W); P.pitch += W.c.kickV; clampPitch(); flashT = .07; return; }
   sfx.fire(W.id, W.c.supp); if (V.slide) slideKick = 1; rumble(W.id === 'smg' ? .2 : .35, W.id === 'sniper' || W.id === 'shotgun' ? .8 : .5, W.id === 'smg' ? 45 : 80);
   const spread = currentSpread();
   const targets = solids.slice();
@@ -10444,6 +10575,8 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
     giveXP(xp);
     if (head && !src) addHeadshot(cur());
     if (src !== 'air' && src !== 'drone' && src !== 'pet') addStreakKill();
+    chalEvent('kill'); if (head && !src) chalEvent('head'); if (src === 'knife') chalEvent('knife'); if (src === 'nade'){ chalEvent('nade'); if (cur().rocket) chalEvent('rocket'); }
+    if (src === 'pet') chalEvent('pet'); if (currentMap === 'neon') chalEvent('neonkill'); if (!src && cur().id === 'pistol') chalEvent('pistol'); if (e.type === 'boss') chalEvent('boss');
     dropLoot(e);
     if (!src){
       const W = cur(); W.kills++;
@@ -10595,7 +10728,7 @@ function updateHUD(dt){
 
 /* ---------- Waves ---------- */
 function startWave(){
-  wave++; toSpawn = 2 + wave*2; spawnT = 0.8; waveActive = true;
+  wave++; toSpawn = 2 + wave*2; spawnT = 0.8; waveActive = true; chalEvent('wave', wave);
   bossPending = wave % 5 === 0;
   if (bossPending) toSpawn = Math.round(toSpawn*.6);
   banner(bossPending ? `Wave ${wave}: boss wave` : `Wave ${wave}`);
@@ -10722,7 +10855,7 @@ function update(dt){
   for (const e of enemies) updateEnemy(e, dt);
   separateEnemies();
   enemies = enemies.filter(e => !e.gone);
-  if (hubMode) updateHub(dt); else { updateWaves(dt); updatePet(dt); petCombat(dt); }
+  if (hubMode) updateHub(dt); else { updateWaves(dt); updatePet(dt); petCombat(dt); updateRockets(dt); }
 
   // viewmodel: position, bob, sway, inertia, recoil, reload, actions
   const W = cur(), V = W.vm;
@@ -10780,7 +10913,7 @@ function update(dt){
     V.right.position.set(V.rightRest.x + V.boltReach.x*reach, V.rightRest.y + V.boltReach.y*reach, V.rightRest.z + V.boltReach.z*reach + back*.08*reach);
     gun.rotation.z += reach*.12; gun.rotation.x += reach*.05;
   }
-  gun.visible = !scoped && !hubMode;
+  gun.visible = !scoped && !hubMode; if (V.rocketHead) V.rocketHead.visible = W.ammo > 0;
   if (V.slide){ slideKick *= Math.exp(-dt*28); V.slide.position.z = W.ammo === 0 ? .035 : slideKick*.035; }
   flashT -= dt; V.flash.visible = flashT > 0;
   muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*40);
@@ -10830,6 +10963,7 @@ function clearEnemies(){
   for (const sh of shells) gunScene.remove(sh.obj); shells.length = 0;
   for (const h of holes) scene.remove(h); holes.length = 0;
   for (const d of drops) scene.remove(d.m); drops.length = 0; pushT = 0; pushCd = 14;
+  for (const r of rockets) scene.remove(r.g); rockets.length = 0;
   for (const n of nades) scene.remove(n.mesh); nades.length = 0;
   for (const sm of smokes) sm.sprites.forEach(sp => scene.remove(sp)); smokes.length = 0;
   for (const p of pickups) scene.remove(p.g); pickups.length = 0;
@@ -10856,7 +10990,7 @@ function startGame(fromPad){
   setMap(selectedMap); initAudio(); resetGame();
   state = 'play'; show(null); $('hud').hidden = false; $('touch').hidden = !isTouch;
   startWave(); summonPet(); matchStart(); if (pet) setTimeout(() => petSay('LFG'), 1200); if (fromPad !== true) requestLock();
-  toast(isTouch ? 'Tap Swap or the weapon bar to change guns' : padActive ? 'Press Triangle to switch weapons' : 'Press 1, 2, 3 or 4 (or scroll) to switch weapons', 5000);
+  toast(isTouch ? 'Tap Swap or the weapon bar to change guns' : padActive ? 'Press Triangle to switch weapons' : 'Press 1 to 6 (or scroll) to switch weapons', 5000);
 }
 function pause(){
   if (state !== 'play') return;
@@ -10867,7 +11001,7 @@ function pause(){
   setTimeout(() => { if (state === 'paused') maybePrompt(); }, 400);
 }
 function resume(fromPad){ if (padClicking) fromPad = true; state = 'play'; show(null); $('touch').hidden = !isTouch; initAudio(); if (fromPad !== true){ setPadActive(false); requestLock(); } }
-function toMenu(){ leaveHub(); removePet(); state = 'menu'; clearEnemies(); $('hud').hidden = true; $('touch').hidden = true; $('bestLine').textContent = bestText(); show('menu'); setTimeout(() => maybePrompt(), 600); }
+function toMenu(){ leaveHub(); removePet(); try { loadDaily(); renderDailyBox(); } catch(e){} state = 'menu'; clearEnemies(); $('hud').hidden = true; $('touch').hidden = true; $('bestLine').textContent = bestText(); show('menu'); setTimeout(() => maybePrompt(), 600); }
 /* ---------- Shared leaderboard ---------- */
 let lbDb = null, lbId = null, lastGame = null, lbRows = [];
 (async () => {
@@ -10953,6 +11087,7 @@ function onPlazaPeers(ch){
     const petKey = pr.pet && pr.pet.name ? pr.pet.name + '|' + (pr.pet.image || '') + '|' + (pr.pet.cos || []).join(',') : '', tstyle = pr.tag === 'gold' || pr.tag === 'neon' ? pr.tag : '';
     if (a && (a.name !== name || a.col !== col || a.x1 !== x1 || a.title !== title || a.petKey !== petKey || a.tstyle !== tstyle)){ removeAvatar(p.peer); a = null; }
     if (!a){ a = makeAvatar(col, name, x1, title, tstyle); a.tstyle = tstyle; a.petKey = petKey; if (petKey) a.pet = otherPet(pr.pet); a.pos.set(pr.x, pr.y || 0, pr.z); avatars.set(p.peer, a); }
+    if (pr.emote && pr.emote.at && pr.emote.at !== a.emoteAt){ a.emoteAt = pr.emote.at; if (Date.now() - pr.emote.at < 6000) emoteBubble(a, String(pr.emote.k)); }
     a.target.set(Math.max(-45, Math.min(45, pr.x)), Math.max(0, Math.min(10, pr.y || 0)), Math.max(-45, Math.min(45, pr.z))); a.tyaw = Number(pr.yaw) || 0;
   }
   const others = ch.peers.filter(p => !p.isMe && p.presence && typeof p.presence.x === 'number').length;
@@ -11269,6 +11404,8 @@ function renderCompanionApp(body){
 function updateHub(dt){
   updatePet(dt);
   for (const a of avatars.values()){
+    if (a.emoteT > 0){ a.emoteT -= dt; a.emoteSpr.position.y = 2.75 + Math.sin(T*6)*.05; if (a.emoteT <= 0){ a.g.remove(a.emoteSpr); a.emoteSpr = null; } }
+    if (a.danceT > 0){ a.danceT -= dt; a.tyaw += dt*6; }
     if (a.pet){ const pg = a.pet.g, ry = a.yaw, tx = a.pos.x + Math.cos(ry)*1.1 - Math.sin(ry)*.4, tz = a.pos.z - Math.sin(ry)*1.1 - Math.cos(ry)*.4;
       const ox = pg.position.x, oz = pg.position.z;
       pg.position.x += (tx - ox)*Math.min(1, dt*3); pg.position.z += (tz - oz)*Math.min(1, dt*3); pg.position.y = a.pos.y;
@@ -11282,8 +11419,8 @@ function updateHub(dt){
   }
   if (hubCrystal){ hubCrystal.rotation.y += dt*.8; hubCrystal.position.y = 3.4 + Math.sin(T*1.5)*.15; }
   presT -= dt;
-  if (net.plaza && presT <= 0){ presT = .1; net.plaza.presence({ x:+P.pos.x.toFixed(2), y:+P.pos.y.toFixed(2), z:+P.pos.z.toFixed(2), yaw:+P.yaw.toFixed(3), name:callsign(), col:myColor, x1:x1Verified, title:holderTitle(), pet:pet && petCfg ? { name:petCfg.name, mint:petCfg.mint, image:petCfg.image, traits:petCfg.traits || null, cos:petCos() } : null, tag:tagStyleOwned() }).catch(() => {}); }
-  $('chatHint').textContent = padActive ? 'Triangle opens your phone, Square at the trade board opens the NFT market' : isTouch ? 'Use the Phone, Chat and Trade buttons' : 'Enter to chat, Q for your phone, E or click at the trade board to trade';
+  if (net.plaza && presT <= 0){ presT = .1; net.plaza.presence({ x:+P.pos.x.toFixed(2), y:+P.pos.y.toFixed(2), z:+P.pos.z.toFixed(2), yaw:+P.yaw.toFixed(3), name:callsign(), col:myColor, x1:x1Verified, title:holderTitle(), pet:pet && petCfg ? { name:petCfg.name, mint:petCfg.mint, image:petCfg.image, traits:petCfg.traits || null, cos:petCos() } : null, tag:tagStyleOwned(), emote:myEmote }).catch(() => {}); }
+  $('chatHint').textContent = padActive ? 'Triangle opens your phone, D-pad for emotes, Square at the trade board opens the NFT market' : isTouch ? 'Use the Phone, Chat and Trade buttons' : 'Enter to chat, Q for your phone, 1 to 4 for emotes, E or click at the trade board to trade';
   $('phoneKey').textContent = padActive ? 'Triangle' : 'Q';
   const near = (hubBoard && P.pos.distanceTo(hubBoard) < 5) || HUB_STALLS.some(s => Math.hypot(s.x - P.pos.x, s.z - P.pos.z) < 3.8);
   $('hubPrompt').hidden = !near || uiOpen;
@@ -11599,7 +11736,7 @@ function renderPhone(){
   const body = $('phBody'); body.innerHTML = '';
   if (phoneApp === 'home'){
     const grid = document.createElement('div'); grid.className = 'phGrid';
-    for (const [icon, name, fn] of [['👛','X1 Wallet',() => { phoneApp = 'wallet'; renderPhone(); }], ['🖼️','My NFTs',() => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }], ['🎁','Items',() => { phoneApp = 'items'; loadCatalog().then(() => loadDrops()).then(() => renderPhone()); renderPhone(); }], ['🐾','Companion',() => { phoneApp = 'companion'; x1Msg = ''; renderPhone(); }], ['👤','Account',() => { closeUI(true); openAccount(); }], ['🛒','NFT Market',() => { if (!hubMode){ x1Msg = ''; toast('The NFT Market is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openMarket(); }], ['💬','Chat',() => { if (!hubMode){ toast('Chat is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openChat(); }], ['🔎','X1 Explorer',() => openExplorer()]]){
+    for (const [icon, name, fn] of [['👛','X1 Wallet',() => { phoneApp = 'wallet'; renderPhone(); }], ['🖼️','My NFTs',() => { galSel = null; phoneApp = 'gallery'; renderPhone(); if (isAddr(x1Addr) && !holder.checked && !holder.loading) fetchBalance(); }], ['🌐','Browser',() => { phoneApp = 'browser'; x1Msg = ''; renderPhone(); }], ['🎁','Items',() => { phoneApp = 'items'; loadCatalog().then(() => loadDrops()).then(() => renderPhone()); renderPhone(); }], ['🐾','Companion',() => { phoneApp = 'companion'; x1Msg = ''; renderPhone(); }], ['👤','Account',() => { closeUI(true); openAccount(); }], ['🛒','NFT Market',() => { if (!hubMode){ x1Msg = ''; toast('The NFT Market is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openMarket(); }], ['💬','Chat',() => { if (!hubMode){ toast('Chat is in the Degen Market. Open it from the main menu.', 3000); return; } closeUI(true); openChat(); }], ['🔎','X1 Explorer',() => openExplorer()]]){
       const b = document.createElement('button'); b.type = 'button'; b.className = 'phApp';
       const i = document.createElement('span'); i.textContent = icon; const n = document.createElement('b'); n.textContent = name; b.append(i, n); b.addEventListener('click', fn); grid.appendChild(b);
     }
@@ -11612,6 +11749,7 @@ function renderPhone(){
   if (phoneApp === 'gallery'){ renderGallery(body); return; }
   if (phoneApp === 'companion'){ renderCompanionApp(body); return; }
   if (phoneApp === 'items'){ renderItemsApp(body); return; }
+  if (phoneApp === 'browser'){ renderBrowser(body); return; }
   if (phoneApp === 'diag'){ renderDiag(body); return; }
   // wallet app
   const head = document.createElement('div'); head.className = 'phHead';
@@ -11987,6 +12125,47 @@ function startWalletScan(){
     if (key !== last){ last = key; renderPhone(); }
   }, 1000);
 }
+/* ---------- Phone browser: open dApps like a DEX in a new tab ---------- */
+const DEFAULT_BOOKMARKS = [
+  { name:'X1 Explorer', url:'https://explorer.mainnet.x1.xyz/' },
+  { name:'X1 Ninja', url:'https://nft.x1.ninja/' }
+];
+function bookmarks(){ try { const b = JSON.parse(store.get('dy-bookmarks') || 'null'); return Array.isArray(b) ? b : DEFAULT_BOOKMARKS.slice(); } catch(e){ return DEFAULT_BOOKMARKS.slice(); } }
+function saveBookmarks(b){ store.set('dy-bookmarks', JSON.stringify(b.slice(0, 20))); }
+function cleanUrl(raw){
+  let u = String(raw || '').trim(); if (!u) return null;
+  if (!/^[a-z]+:\/\//i.test(u)) u = 'https://' + u;
+  try { const x = new URL(u); return x.protocol === 'https:' ? x : null; } catch(e){ return null; }
+}
+function openSite(u){
+  const x = cleanUrl(u); if (!x){ x1Msg = 'Only https:// links can be opened.'; renderPhone(); return; }
+  const a = document.createElement('a'); a.href = x.href; a.target = '_blank'; a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click(); a.remove();
+  x1Msg = `Opened ${x.hostname} in a new tab. Connect the same wallet there, then come back to the game.`; renderPhone();
+}
+function renderBrowser(body){
+  const head = document.createElement('div'); head.className = 'phHead';
+  head.append(phoneBtn('‹ Home', () => { phoneApp = 'home'; x1Msg = ''; renderPhone(); }, 'phBack'), phoneLine('Browser', 'phTitle')); body.appendChild(head);
+  const inp = document.createElement('input'); inp.id = 'brUrl'; inp.placeholder = 'Type a site, for example app.example.xyz'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.setAttribute('aria-label', 'Website address');
+  inp.addEventListener('keydown', e => { if (e.code === 'Enter'){ e.preventDefault(); openSite(inp.value); } });
+  body.appendChild(inp);
+  const row = document.createElement('div'); row.className = 'phRow';
+  row.append(phoneBtn('Open', () => openSite(inp.value), 'phMain'), phoneBtn('Bookmark', () => {
+    const x = cleanUrl(inp.value); if (!x){ x1Msg = 'Type a valid https:// address first.'; renderPhone(); return; }
+    const b = bookmarks(); if (!b.some(k => k.url === x.href)) b.unshift({ name:x.hostname.replace(/^www\./, ''), url:x.href }); saveBookmarks(b); x1Msg = `Saved ${x.hostname}.`; renderPhone();
+  }));
+  body.appendChild(row);
+  body.appendChild(phoneLine('Bookmarks', 'phTitle2'));
+  const bm = bookmarks();
+  for (const k of bm){
+    const r = document.createElement('div'); r.className = 'phRow';
+    r.append(phoneBtn(`${k.name}`, () => openSite(k.url)), phoneBtn('✕', () => { saveBookmarks(bookmarks().filter(x => x.url !== k.url)); renderPhone(); }, 'phGhost phX'));
+    body.appendChild(r);
+  }
+  if (!bm.length) body.appendChild(phoneLine('No bookmarks yet. Type your DEX address above and tap Bookmark.', 'phSmall'));
+  body.appendChild(phoneLine('Sites open in a new browser tab, where your wallet extension works normally. Check the address carefully: fake DEX sites are a common scam.', 'phWarn2'));
+  if (x1Msg) body.appendChild(phoneLine(x1Msg, 'phMsg'));
+}
+
 function openPhone(){
   if (state === 'play' && !hubMode) return;
   if (!$('phone').hidden) return;
@@ -12835,12 +13014,13 @@ addEventListener('keydown', e => {
   if (hubMode && state === 'play'){
     if (e.code === 'Enter' || e.code === 'NumpadEnter'){ e.preventDefault(); openChat(); return; }
     if (e.code === 'KeyQ'){ e.preventDefault(); openPhone(); return; }
+    if (/^Digit[1-4]$/.test(e.code)){ doEmote(+e.code.slice(5) - 1); return; }
     if (e.code === 'KeyE' || e.code === 'KeyM'){ if (e.code === 'KeyM' || !$('hubPrompt').hidden) openMarket(); }
   }
   keys[e.code] = true; if (padActive && state === 'play') setPadActive(false);
   if (state === 'play'){
     if (e.code === 'Digit0' || e.code === 'Numpad0' || e.code === 'KeyR') reload();
-    if (/^Digit[1-5]$/.test(e.code)) selectWeapon(+e.code.slice(5) - 1);
+    if (/^Digit[1-6]$/.test(e.code)) selectWeapon(+e.code.slice(5) - 1);
     if (!e.repeat && e.code === 'KeyG') startNade('frag');
     if (!e.repeat && e.code === 'KeyQ') startNade('tac');
     if (e.code === 'KeyT') tacType = tacType === 'smoke' ? 'flash' : 'smoke';
@@ -12921,6 +13101,7 @@ $('lbPost').addEventListener('click', postScore);
 $('hubBtn').addEventListener('click', () => startHub());
 $('mkPost').addEventListener('click', postListing);
 $('phClose').addEventListener('click', () => closeUI());
+loadDaily(); renderDailyBox();
 $('acctChip').addEventListener('click', () => { if (signedIn()) openAccount(); else openLogin(); });
 setTimeout(autoReconnect, 1200); setTimeout(autoReconnect, 3500); setTimeout(() => { if (state === 'menu'){ $('acctChip').hidden = false; renderAcctChip(); } }, 500);
 $('acctMenuBtn').addEventListener('click', () => openAccount());
@@ -13095,7 +13276,8 @@ function pollPad(dt){
     if (pressed(7)){ firing = true; fireQueued = true; }  if (released(7)) firing = false;   // R2 shoot
     if (pressed(3)){ if (hubMode) openPhone(); else cycleWeapon(1); }  // Triangle swap / phone
     if (pressed(8) && !reloading) inspectT = 2.6;                       // Create button inspect
-    if (pressed(12)) useStreak('uav'); if (pressed(15)) useStreak('air'); if (pressed(13)) useStreak('drone');
+    if (hubMode){ if (pressed(12)) doEmote(0); if (pressed(15)) doEmote(1); if (pressed(13)) doEmote(2); if (pressed(14)) doEmote(3); }
+    else { if (pressed(12)) useStreak('uav'); if (pressed(15)) useStreak('air'); if (pressed(13)) useStreak('drone'); }
     if (pressed(6)) ads = true;     if (released(6)) ads = false;      // L2 aim
     if (pressed(0)) touch.jump = true;                                  // Cross jump
     if (pressed(1)) crouchPress();                                      // Circle crouch + slide

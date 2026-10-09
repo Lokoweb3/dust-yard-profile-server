@@ -22,7 +22,7 @@
  */
 const http = require('http'), fs = require('fs'), crypto = require('crypto'), zlib = require('zlib'), path = require('path');
 const nacl = require('tweetnacl'), bs58 = require('bs58');
-const { Connection, Keypair, PublicKey, SystemProgram, Transaction, ComputeBudgetProgram } = require('@solana/web3.js');
+const { Connection, Keypair, PublicKey, SystemProgram, Transaction, ComputeBudgetProgram, VersionedTransaction } = require('@solana/web3.js');
 const {
   TOKEN_2022_PROGRAM_ID, ExtensionType, getMintLen, createInitializeNonTransferableMintInstruction,
   createInitializeMetadataPointerInstruction, createInitializeMintInstruction, getAssociatedTokenAddressSync,
@@ -73,6 +73,24 @@ function validateSummary(prev, next){
   }
   // TODO: compare against kills, waves and XP your game server recorded for this wallet's sessions.
   return '';
+}
+
+/* ---------- compute limits ---------- */
+// On X1 the fee follows the compute units a transaction REQUESTS (about 10 lamports per unit,
+// measured on this server's own transactions), so every transaction asks for what it needs.
+async function fitUnits(conn, tx, fallback = 200000){
+  try {
+    const probe = new VersionedTransaction(tx.compileMessage());   // legacy message, simulated without signatures
+    const sim = await conn.simulateTransaction(probe, { sigVerify:false, replaceRecentBlockhash:true, commitment:'confirmed' });
+    if (sim.value.err || !sim.value.unitsConsumed) return fallback;
+    return Math.min(1400000, Math.ceil(sim.value.unitsConsumed*1.15) + 5000);
+  } catch(e){ return fallback; }
+}
+async function withFittedLimit(conn, tx, fallback){
+  const first = tx.instructions[0], isBudget = first && first.programId.equals(ComputeBudgetProgram.programId);
+  if (!isBudget) tx.instructions.unshift(ComputeBudgetProgram.setComputeUnitLimit({ units:fallback || 200000 }));
+  tx.instructions[0] = ComputeBudgetProgram.setComputeUnitLimit({ units:await fitUnits(conn, tx, fallback) });
+  return tx;
 }
 
 /* ---------- transaction builders ---------- */
@@ -205,7 +223,8 @@ function startPlaza(server){
         p.presence = { x:+d.x || 0, y:+d.y || 0, z:+d.z || 0, yaw:+d.yaw || 0, name:str(d.name, 16), col:num(d.col, 0xffffff), x1:d.x1 === true, title:str(d.title, 20),
           pet:d.pet && typeof d.pet === 'object' ? { name:str(d.pet.name, 24), mint:str(d.pet.mint, 44), image:/^https:\/\//.test(d.pet.image || '') ? str(d.pet.image, 200) : '',
             traits:d.pet.traits && typeof d.pet.traits === 'object' ? Object.fromEntries(Object.entries(d.pet.traits).slice(0, 16).map(([k, v]) => [str(k, 24), str(v, 32)])) : null,
-            cos:Array.isArray(d.pet.cos) ? d.pet.cos.slice(0, 4).map(x => str(x, 24)) : [] } : null, tag:d.tag === 'gold' || d.tag === 'neon' ? d.tag : '' };
+            cos:Array.isArray(d.pet.cos) ? d.pet.cos.slice(0, 4).map(x => str(x, 24)) : [] } : null, tag:d.tag === 'gold' || d.tag === 'neon' ? d.tag : '',
+          emote:d.emote && typeof d.emote === 'object' && ['wave','dance','salute','gm'].includes(d.emote.k) ? { k:d.emote.k, at:+d.emote.at || 0 } : null };
         p.at = Date.now(); } } catch(e){}
     });
     ws.on('close', () => { peers.delete(id); broadcast({ t:'left', id }); });
@@ -398,6 +417,7 @@ async function nftAccount(conn, owner, mint){
 async function buildPending(conn, kind, ixs, data){
   const { blockhash } = await conn.getLatestBlockhash();
   const tx = new Transaction({ feePayer:serverKey.publicKey, recentBlockhash:blockhash }).add(...ixs);
+  await withFittedLimit(conn, tx, kind === 'buy' ? 150000 : 60000);
   const id = crypto.randomBytes(8).toString('hex');
   market.pending[id] = { kind, message:tx.serializeMessage().toString('base64'), exp:Date.now() + 90000, ...data };
   for (const [k, p] of Object.entries(market.pending)) if (p.exp < Date.now()) delete market.pending[k];
@@ -481,6 +501,7 @@ async function main(){
     const { blockhash } = await conn.getLatestBlockhash();
     const sigs = [];
     for (const { tx, signers } of splitIntoTransactions(built.ixs, server.publicKey, built.signersFor, blockhash)){
+      await withFittedLimit(conn, tx, 200000);
       tx.sign(...signers); const sig = await conn.sendRawTransaction(tx.serialize()); await conn.confirmTransaction(sig, 'confirmed'); sigs.push(sig);
     }
     return sigs;
