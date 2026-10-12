@@ -26,7 +26,7 @@ jobs:
       - run: node scripts/check-repo.mjs
 
   smoke:
-    name: Server smoke test
+    name: Server lint + smoke test
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -37,6 +37,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Catch missing imports between modules
+        run: npm run lint
       - run: npm run test:smoke
 
   e2e:
