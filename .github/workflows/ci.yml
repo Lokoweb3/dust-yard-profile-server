@@ -30,6 +30,16 @@ jobs:
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,13 +53,28 @@ jobs:
         run: |
           npm run build
           if [ -n "$(git status --porcelain public/)" ]; then git status --porcelain public/; echo "public/ is out of date: run npm run build and commit the result"; exit 1; fi
-      - run: npm run test:smoke
+      - name: Match checks catch faked results
+        run: npm run test:matches
+      - name: Old data imports into Postgres and survives a restart
+        run: npm run test:db
+      - name: Smoke test (on Postgres)
+        run: npm run test:smoke
 
   e2e:
     name: Game in a real browser (solo + co-op)
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres:ci@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

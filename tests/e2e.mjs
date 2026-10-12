@@ -12,14 +12,14 @@ const browser = await chromium.launch({
   args:['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required']
 });
 const errors = [];
-const assets = [];
+const assets = [], matchCalls = [];
 async function player(tag, init){
   const ctx = await browser.newContext({ viewport:{ width:960, height:560 } });
   await ctx.addInitScript(() => { localStorage.setItem('dy-tut', '1'); if (!localStorage.getItem('dy-age') && !window.__ageTest) localStorage.setItem('dy-age', 'adult'); });
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(`${tag}: ${e.message}`));
-  page.on('response', r => { if (r.url().includes('/assets/')) assets.push([r.url().split('/assets/')[1], r.status()]); });
+  page.on('response', r => { if (r.url().includes('/assets/')) assets.push([r.url().split('/assets/')[1], r.status()]); if (r.url().includes('/api/match/')) matchCalls.push([tag, r.url().split('/api/match/')[1], r.status()]); });
   await page.goto(s.base + '/', { waitUntil:'load', timeout:120000 });
   await page.waitForSelector('#deployBtn', { state:'visible', timeout:120000 });
   await page.waitForTimeout(2500);
@@ -45,8 +45,9 @@ try {
   const bad = assets.filter(([, s]) => s !== 200);
   assert(!bad.length, 'Some models or textures failed to load: ' + JSON.stringify(bad));
   for (const id of ['soldierGlb', 'soldierDiff', 'soldierNorm', 'hdWolf']) assert(assets.some(([n]) => n.startsWith(id + '.')), `${id} was never loaded`);
+  assert(matchCalls.some(([t, k, st]) => t === 'solo' && k === 'start' && st === 200), 'the server should have started checking the solo match: ' + JSON.stringify(matchCalls));
   await solo.context().close();
-  console.log('Solo match: OK');
+  console.log('Solo match (checked by the server): OK');
 
   // ---- age check ----
   for (const [year, band] of [[new Date().getFullYear() - 9, 'u13'], [new Date().getFullYear() - 15, 'teen'], [1990, 'adult']]){
@@ -86,6 +87,7 @@ try {
 } catch (e){
   failed = true; console.error('E2E failed: ' + e.message); if (errors.length) console.error('Page errors:\n' + errors.join('\n'));
 } finally {
-  await browser.close(); s.stop();
+  await browser.close();
   if (failed){ console.error('--- server log ---\n' + s.log()); process.exitCode = 1; }
+  await s.stop();
 }

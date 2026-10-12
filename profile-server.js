@@ -12,13 +12,14 @@
  *   X1_RPC          default https://rpc.mainnet.x1.xyz
  *   SERVER_KEYPAIR  path to a Solana-format keypair JSON (the fee payer and NFT authority). Keep a small XNT float only.
  *                   If it doesn't exist yet, one is created there on first start and its address is printed in the logs.
- *   DATA_DIR        folder for the keypair and profile store, default ./data (mount a Railway volume here: /data)
+ *   DATA_DIR        folder for the keypair (and the JSON store when there's no database), default ./data (mount a Railway volume here: /data)
+ *   DATABASE_URL    Postgres connection string. When set, everything except the keypair is stored there.
  *   PUBLIC_URL      public base URL of this server, used in each NFT's metadata URI
  *   ALLOWED_ORIGIN  your game's origin, for example https://your-game.netlify.app
  *   PORT            default 8787
  *
- * Production notes: replace the JSON file store with a real database, put this behind HTTPS,
- * and replace validateSummary() with checks against your server-recorded match sessions.
+ * Production notes: put this behind HTTPS.
+ * Profile stats are limited to what lib/matches.js verified for the wallet's linked devices.
  */
 // Each part of the server lives in lib/: see the README for a map.
 const http = require('http'), fs = require('fs'), crypto = require('crypto'), zlib = require('zlib'), path = require('path'), nacl = require('tweetnacl'), bs58 = require('bs58');
@@ -29,7 +30,9 @@ const { ALLOWED_ORIGIN, DATA_DIR, PUBLIC_URL, RPC } = require('./lib/config');
 const { itemsRoute, loadItems } = require('./lib/items');
 const { loadMarket, marketRoute } = require('./lib/market');
 const { portfolioRoute } = require('./lib/portfolio');
-const { cardSvg, fieldsFor, loadStore, saveStore, syncMessage, validateSummary } = require('./lib/profiles');
+const { applyVerified, cardSvg, fieldsFor, loadStore, saveStore, syncMessage, validateSummary } = require('./lib/profiles');
+const db = require('./lib/db');
+const { linkDevice, loadMatches } = require('./lib/matches');
 const { proxyFetch } = require('./lib/proxy');
 const { getSocial, loadSocial, pruneChat, socialQuery, socialWrite, startPlaza } = require('./lib/social');
 const { keys } = require('./lib/state');
@@ -46,7 +49,19 @@ async function main(){
   if (!fs.existsSync(keyPath)){ fs.writeFileSync(keyPath, JSON.stringify(Array.from(Keypair.generate().secretKey)), { mode:0o600 }); console.log('Created a new server keypair at ' + keyPath); }
   const server = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyPath, 'utf8'))));
   const conn = new Connection(RPC, 'confirmed');
-  const store = loadStore(); loadSocial(); pruneChat(); loadItems(); loadMarket();
+  await db.init();
+  await loadMatches(); const store = await loadStore(); await loadSocial(); pruneChat(); await loadItems(); await loadMarket();
+  // save everything before Railway stops the server for a redeploy
+  // On stop (Railway redeploys send SIGTERM): stop taking requests, let running ones finish (a mint
+  // can take a few seconds), save everything, then exit.
+  let inflight = 0, httpServer = null;
+  for (const sig of ['SIGTERM', 'SIGINT']) process.once(sig, async () => {
+    console.log(`${sig}: finishing requests, saving and stopping`);
+    if (httpServer){ httpServer.close(); if (httpServer.closeIdleConnections) httpServer.closeIdleConnections(); }
+    for (let i = 0; i < 80 && inflight > 0; i++) await new Promise(r => setTimeout(r, 100));
+    try { await db.close(); } catch(e){ console.error(e.message); }
+    process.exit(0);
+  });
   keys.server = server; keys.secret = server.secretKey;
   // serve the game itself from public/index.html, so one Railway address hosts both
   let game = null; const gamePath = path.join(__dirname, 'public', 'index.html');
@@ -61,7 +76,8 @@ async function main(){
     }
     return sigs;
   };
-  const httpServer = http.createServer(async (req, res) => {
+  httpServer = http.createServer(async (req, res) => {
+    inflight++; res.once('close', () => { inflight--; });
     const reply = (code, obj, type) => { res.writeHead(code, { 'Content-Type':type || 'application/json', 'Access-Control-Allow-Origin':ALLOWED_ORIGIN, 'Access-Control-Allow-Headers':'content-type', 'Cache-Control':'no-store' }); res.end(type ? obj : JSON.stringify(obj)); };
     try {
       if (req.method === 'OPTIONS') return reply(204, '', 'text/plain');
@@ -86,7 +102,7 @@ async function main(){
       }
       if (req.method === 'GET' && (req.url === '/' || req.url === '/health')){
         let xnt = null; try { xnt = (await conn.getBalance(server.publicKey))/1e9; } catch(e){}
-        return reply(200, { ok:true, feePayer:server.publicKey.toBase58(), feePayerXnt:xnt, profiles:Object.keys(store.profiles).length });
+        return reply(200, { ok:true, feePayer:server.publicKey.toBase58(), feePayerXnt:xnt, profiles:Object.keys(store.profiles).length, storage:db.usingPostgres() ? 'postgres' : 'files' });
       }
       const card = req.url.match(/^\/card\/([1-9A-HJ-NP-Za-km-z]{32,44})\.(json|svg)$/);
       if (card){
@@ -138,27 +154,29 @@ async function main(){
       }
       if (req.method !== 'POST' || req.url !== '/profile/sync') return reply(404, { error:'not found' });
       let body = ''; for await (const c of req){ body += c; if (body.length > 20000) return reply(413, { error:'too large' }); }
-      const { request:r, walletSig } = JSON.parse(body);
+      const { request:r, walletSig, device } = JSON.parse(body);
       // 1. signature, freshness, replay
-      if (!r || !['mint','update'].includes(r.action)) return reply(400, { error:'bad request' });
+      if (!r || !['mint','update'].includes(r.action) || !/^[1-9A-HJ-NP-Za-km-z]{8,64}$/.test(r.nonce || '')) return reply(400, { error:'bad request' });
       const owner = new PublicKey(r.wallet);
       if (!nacl.sign.detached.verify(Buffer.from(syncMessage(r)), bs58.decode(walletSig), owner.toBytes())) return reply(401, { error:'signature did not verify' });
       if (Math.abs(Date.now() - Date.parse(r.issuedAt)) > 5*60000) return reply(401, { error:'request expired' });
       if (store.nonces[r.nonce]) return reply(409, { error:'nonce already used' });
-      store.nonces[r.nonce] = Date.now();
-      // 2. stats sanity (replace with session checks)
+      store.nonces[r.nonce] = Date.now(); db.save('profiles');
+      // 2. this device's checked matches count toward the wallet; stats are limited to what was checked
+      if (device && typeof device === 'object') linkDevice(device.guest, r.wallet, r.nonce, device.sig);
       const prev = store.profiles[r.wallet];
-      const summary = Object.assign({}, r.summary, { username:r.username, updated:Math.floor(Date.now()/1000) });
-      const err = validateSummary(prev && Object.assign({}, prev.summary, { syncedAt:prev.syncedAt }), summary);
-      if (err){ console.log(`sync rejected for ${r.wallet}: ${err}`); return reply(422, { error:err }); }
       if (prev && prev.summary.username !== r.username) return reply(409, { error:'username mismatch' });
       if (!prev && Object.values(store.profiles).some(p => p.summary.username === r.username)) return reply(409, { error:'username taken' });
+      const asked = Object.assign({}, r.summary, { username:r.username, updated:Math.floor(Date.now()/1000) });
+      const { summary, vbase, v0, capped } = applyVerified(prev, asked, r.wallet);
+      const err = validateSummary(prev && Object.assign({}, prev.summary, { syncedAt:prev.syncedAt }), summary);
+      if (err){ console.log(`sync rejected for ${r.wallet}: ${err}`); return reply(422, { error:err }); }
       const fields = fieldsFor(summary, r.fingerprint);
       // 3. mint once, then update only changed fields
       let sigs, mint;
       if (!prev){
         const mintKp = Keypair.generate(); mint = mintKp.publicKey.toBase58();
-        store.profiles[r.wallet] = { mint, summary, fingerprint:r.fingerprint, fields, syncedAt:Date.now(), pending:true }; saveStore(store); // reserve before sending
+        store.profiles[r.wallet] = { mint, summary, fingerprint:r.fingerprint, fields, syncedAt:Date.now(), vbase, v0, pending:true }; await saveStore(); // reserve before sending
         sigs = await send(await buildMint({ server, mint:mintKp, owner, username:r.username, fields, rent:n => conn.getMinimumBalanceForRentExemption(n) }));
       } else {
         mint = prev.mint;
@@ -167,8 +185,8 @@ async function main(){
         const built = buildUpdate({ server, mint:new PublicKey(mint), oldFields:prev.fields, fields, topUp:Math.max(0, need - info.lamports) });
         sigs = built.changed.length ? await send(built) : [];
       }
-      store.profiles[r.wallet] = { mint, summary, fingerprint:r.fingerprint, fields, syncedAt:Date.now() }; saveStore(store);
-      reply(200, { ok:true, mint, signatures:sigs });
+      store.profiles[r.wallet] = { mint, summary, fingerprint:r.fingerprint, fields, syncedAt:Date.now(), vbase, v0 }; await saveStore();
+      reply(200, { ok:true, mint, signatures:sigs, summary, capped });
     } catch(e){ console.error(e); reply(500, { error:'server error' }); }
   });
   startPlaza(httpServer); startSanctionsRefresh();

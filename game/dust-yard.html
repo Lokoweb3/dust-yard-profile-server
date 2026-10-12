@@ -238,7 +238,7 @@ input, textarea, select{ -webkit-user-select:text; user-select:text; -webkit-tou
 .nftWrap{ display:flex; flex-wrap:wrap; gap:16px; margin:6px 0 10px; align-items:flex-start; } .nftCard2{ width:min(260px,70vw); height:auto; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
 .nftFields{ flex:1; min-width:220px; font-size:15px; background:rgba(0,0,0,.3); border-radius:8px; padding:8px 12px; } .nftFields b{ display:block; color:var(--amber); margin-bottom:4px; }
 .nftFields div{ display:flex; justify-content:space-between; gap:10px; border-top:1px solid rgba(244,236,220,.08); padding:2px 0; } .nftFields span{ opacity:.65; } .nftFields em{ font-style:normal; text-align:right; word-break:break-all; }
-#dropBox{ margin:14px 0 0; max-width:560px; } #dropBox > b{ display:block; font-size:20px; color:var(--amber); margin-bottom:6px; }
+#dropBox{ margin:14px 0 0; max-width:560px; } .dropNote{ font-size:13px; opacity:.7; margin-top:6px; } #dropBox > b{ display:block; font-size:20px; color:var(--amber); margin-bottom:6px; }
 .dropRow{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; background:rgba(244,236,220,.06); border:1px solid rgba(244,236,220,.2); border-radius:6px; padding:8px 12px; margin-bottom:6px; font-size:18px; }
 .dropRow em{ font-style:normal; font-weight:700; } .dropRow .btn{ margin-left:auto; font-size:17px; padding:6px 14px; } .dropRow i{ margin-left:auto; color:#5cff8a; font-style:normal; } .dropHint{ font-size:15px; opacity:.8; margin:4px 0 0; }
 #ovCard{ margin:0 0 12px; } .callCard{ width:min(420px,90vw); height:auto; border-radius:8px; display:block; }
@@ -5910,7 +5910,7 @@ function updateWaves(dt){
       spawnT -= dt;
       if (spawnT <= 0 && alive < Math.min(4 + Math.floor(wave/2), 9)){ spawnEnemy(); toSpawn--; spawnT = 1.1; }
     } else if (alive === 0){
-      waveActive = false; intermission = 4;
+      waveActive = false; intermission = 4; matchWave(wave);
       const bonus = wave*100; score += bonus; feed(`Wave cleared +${bonus}`, true); banner('Wave cleared'); giveXP(250 + wave*50);
       fragN = Math.min(nadeCap(), fragN + 1); tacN = Math.min(nadeCap(), tacN + 1); feed('+1 frag, +1 tactical');
     }
@@ -6212,6 +6212,7 @@ async function postScore(){
   const cs = acctName(); if (acct && !acct.claimed) queuePrompt('ranked');
   $('lbPost').disabled = true; $('lbMsg').textContent = 'Posting...';
   try {
+    if (srvMode) await matchQ;   // the server only accepts scores from matches it has finished checking
     const ref = lbDb.doc('scores/' + lbId), cur0 = await ref.get(), d = cur0.exists ? cur0.data() : {};
     const f = 'best_' + lastGame.map, upd = { callsign:cs, level:profile.level, updated:Date.now() };
     if (!(typeof d[f] === 'number') || lastGame.score > d[f]){ upd[f] = lastGame.score; upd['wave_' + lastGame.map] = lastGame.wave; }
@@ -7790,6 +7791,8 @@ async function syncProfileNft(){
       nonce:b58(crypto.getRandomValues(new Uint8Array(16))), issuedAt:new Date().toISOString(), milestones:n.pending.slice() };
     const sig = await walletSign(new TextEncoder().encode(syncMessageFor(req)));
     const payload = { request:req, walletSig:b58(sig) };
+    // link this device, so the matches the server checked on it count toward this wallet's profile
+    if (guestKey) try { payload.device = { guest:guestKey.pub, sig:await srvSign({ op:'link', guest:guestKey.pub, wallet:req.wallet, nonce:req.nonce }) }; } catch(e){}
     if (!PROFILE_API){
       nftView.payload = JSON.stringify(payload, null, 1);
       acctMsg = "Signed. Your game server isn't connected yet, so nothing was sent on-chain. Below is the exact signed request the server will receive.";
@@ -7802,6 +7805,7 @@ async function syncProfileNft(){
     if (!res.ok || !j.ok) throw new Error(j.error || `server error ${res.status}`);
     Object.assign(n, { mint:j.mint, synced:{ sumHash:v.sumHash, fp:v.fp }, syncedAt:Date.now(), pending:[] }); saveAcct();
     acctMsg = req.action === 'mint' ? 'Your soulbound profile NFT is minted. Find it in the phone under My NFTs.' : 'Profile NFT updated on X1.';
+    if (Array.isArray(j.capped) && j.capped.length) acctMsg += ` On-chain stats only count matches the server checked, so ${j.capped.map(k => ({ kills:'kills', headshots:'headshots', bestWave:'best wave', level:'level' }[k] || k)).join(', ')} ${j.capped.length > 1 ? 'are' : 'is'} lower than in your game for now. They catch up as you play.`;
     sfx.levelUp();
   } catch(e){ acctMsg = `Couldn't sync: ${String((e && e.message) || e).slice(0,140)}`; }
   renderAccount();
@@ -7998,16 +8002,35 @@ const RARITY_COL = { Common:'#c9c9c9', Rare:'#4f9dff', Epic:'#b45cff', Legendary
 const has = id => ownedItems.has(id);
 async function loadCatalog(){ if (!PROFILE_API) return null; if (itemCatalog) return itemCatalog; try { itemCatalog = await (await fetch(PROFILE_API + '/api/items/catalog', { cache:'no-store' })).json(); } catch(e){} return itemCatalog; }
 async function postJSON(path, body){ const r = await fetch(PROFILE_API + path, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'request failed'); return j; }
-async function matchStart(){
-  matchSid = null; bossKills = 0;
+// The server checks each match: the game reports every cleared wave as it happens, and drops,
+// leaderboard scores and profile NFT stats only count what those reports prove.
+// Requests go out one at a time, in order, and each belongs to its own match object, so a quick
+// restart can't mix up two matches.
+let matchQ = Promise.resolve(), curMatch = null;
+const matchHostSid = () => (coop && coop.host && curMatch && curMatch.sid) || '';
+function matchStart(){
+  bossKills = 0; curMatch = null; matchSid = null;
   if (!srvMode || !guestKey || hubMode) return;
-  try { const ts = Date.now(), map = currentMap, sig = await srvSign({ op:'start', guest:guestKey.pub, map, ts }); matchSid = (await postJSON('/api/match/start', { guest:guestKey.pub, map, ts, sig })).sid || null; } catch(e){}
+  const m = curMatch = { sid:null, ok:true, guest:guestKey.pub }, ts = Date.now(), map = currentMap, mode = gameMode;
+  matchQ = matchQ.then(async () => { try { const sig = await srvSign({ op:'start', guest:m.guest, map, mode, ts }); m.sid = matchSid = (await postJSON('/api/match/start', { guest:m.guest, map, mode, ts, sig })).sid || null; } catch(e){} });
 }
-async function matchEnd(){
-  if (!srvMode || !matchSid) return [];
-  const sid = matchSid; matchSid = null;
-  try { const ts = Date.now(), b = { op:'end', guest:guestKey.pub, sid, wave, kills, bosses:bossKills, ts }, sig = await srvSign(b);
-    const j = await postJSON('/api/match/end', { guest:guestKey.pub, sid, wave, kills, bosses:bossKills, ts, sig }); return j.drops || []; } catch(e){ return []; }
+function matchWave(cleared){
+  const m = curMatch; if (!m) return;
+  const b = { op:'wave', guest:m.guest, wave:cleared, kills, heads:headshots, bosses:bossKills, xp:gameXP, host:(coop && coop.guest && coop.hostSid) || null, ts:0 };
+  matchQ = matchQ.then(async () => {
+    if (!m.sid || !m.ok) return;
+    try { Object.assign(b, { sid:m.sid, ts:Date.now() }); await postJSON('/api/match/wave', { ...b, sig:await srvSign(b) }); }
+    catch(e){ if (/verified/.test(e.message)) m.ok = false; }
+  });
+}
+function matchEnd(){
+  const m = curMatch; curMatch = null; matchSid = null;
+  if (!m) return Promise.resolve({ drops:[] });
+  const b = { op:'end', guest:m.guest, wave, kills, heads:headshots, bosses:bossKills, xp:gameXP, score, ts:0 };
+  return matchQ = matchQ.then(async () => {
+    if (!m.sid) return { drops:[] };
+    try { Object.assign(b, { sid:m.sid, ts:Date.now() }); return await postJSON('/api/match/end', { ...b, sig:await srvSign(b) }); } catch(e){ return { drops:[] }; }
+  });
 }
 async function loadDrops(){ if (!srvMode || !guestKey) return []; try { myDrops = (await (await fetch(`${PROFILE_API}/api/drops?guest=${guestKey.pub}`, { cache:'no-store' })).json()).drops || []; } catch(e){} return myDrops; }
 function claimBlocker(){
@@ -9212,7 +9235,7 @@ function coopSend(force){
       en.push([e.nid, COOP_TYPES.indexOf(e.type), Math.round(e.pos.x*10), Math.round(e.pos.z*10), Math.round((e.y || 0)*10), Math.round((e.face || 0)*100),
         Math.max(0, Math.round(e.alive ? e.hp : 0)), (e.sees ? 1 : 0) | (e.crouching ? 2 : 0) | (e.shogun ? 4 : 0), (e.shotN || 0) % 1000, t]); }
     pr.co = { st:coop.st, map:currentMap === 'hub' ? selectedMap : (coop.started ? currentMap : selectedMap), wave, wa:waveActive ? 1 : 0, en, pl,
-      hurt:[...coop.mates.values()].map(m => [m.peer, Math.round(m.hurt)]) };
+      hurt:[...coop.mates.values()].map(m => [m.peer, Math.round(m.hurt)]), ms:matchHostSid() };
   }
   coop.r.presence(pr).catch(() => {});
   if (coop.host && coopLobby) coopLobby.presence({ code:coop.code, st:coop.st, name:coopName(), n:coop.mates.size + 1, map:selectedMap }).catch(() => {});
@@ -9273,8 +9296,9 @@ function coopApplyHost(){
   const pr = coopHostPr(); if (!pr || !pr.co) return;
   const co = pr.co;
   if (co.st === 'over' && coop.started && !coop.over){ coopEnd(); return; }
+  if (typeof co.ms === 'string' && /^[0-9a-f]{16}$/.test(co.ms)) coop.hostSid = co.ms;
   if (typeof co.wave === 'number' && co.wave !== wave){
-    if (co.wave > wave && wave > 0){ const bonus = wave*100; score += bonus; feed(`Wave cleared +${bonus}`, true); giveXP(250 + wave*50); fragN = Math.min(nadeCap(), fragN + 1); tacN = Math.min(nadeCap(), tacN + 1); }
+    if (co.wave > wave && wave > 0){ for (let w = wave; w < co.wave; w++) matchWave(w); const bonus = wave*100; score += bonus; feed(`Wave cleared +${bonus}`, true); giveXP(250 + wave*50); fragN = Math.min(nadeCap(), fragN + 1); tacN = Math.min(nadeCap(), tacN + 1); }
     wave = co.wave; if (wave > 0) banner(`Wave ${wave}`);
   }
   waveActive = !!co.wa;
@@ -9494,7 +9518,11 @@ function gameOver(){
   $('overTitle').textContent = tdm ? (tdm.result === true ? 'Victory' : tdm.result === false ? 'Defeat' : 'Match over') : 'Overrun';
   if (tdm){ const t = tdm; setTimeout(() => { $('finalStat').textContent = `Team ${t.us.toLocaleString()} – ${t.them.toLocaleString()} Raiders · ${t.kills} kills, ${t.deaths} deaths, K/D ${(t.kills/Math.max(1,t.deaths)).toFixed(2)}`; }, 0); $('tdmBar').hidden = true; $('scoreboard').hidden = true; }
   lastGame = { score, wave, map:currentMap };
-  $('dropBox').innerHTML = ''; matchEnd().then(d => { if (d.length){ renderDropsInto($('dropBox'), d, 'You found:'); sfx.levelUp(); } });
+  $('dropBox').innerHTML = ''; matchEnd().then(j => {
+    const d = (j && j.drops) || [];
+    if (d.length){ renderDropsInto($('dropBox'), d, 'You found:'); sfx.levelUp(); }
+    else if (j && j.verified === null){ const n = document.createElement('div'); n.className = 'dropNote'; n.textContent = "This match couldn't be verified by the server, so it doesn't count toward drops or the leaderboard."; $('dropBox').appendChild(n); }
+  });
   const cc = cardOwned(); $('ovCard').innerHTML = ''; if (cc) $('ovCard').appendChild(drawCallingCard(cc, acctName()));
   $('lbPostRow').hidden = !(lbDb && lbId && score > 0); $('lbPost').disabled = false; $('lbMsg').textContent = '';
   $('callsign').value = acctName(); $('callsign').readOnly = true;
