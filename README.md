@@ -66,3 +66,10 @@ Run everything locally with `npm test` (the browser test needs `npx playwright i
 | `lib/swap.js` | XDEX swaps between XNT and USDC.X |
 | `lib/badges.js` | Achievement badges: free soulbound NFTs for milestones |
 | `lib/portfolio.js` | Wallet portfolio with dollar values |
+
+## The game
+
+- **Source:** `game/dust-yard.html`. It's a single self-contained file (it also runs on its own as the claude.ai version), so edit this one.
+- **Build:** `npm run build` writes what Railway serves: `public/index.html` (minified, about 1.2 MB) and `public/assets/` (models and textures, named by content hash so browsers cache them until they change).
+- Commit both the source and the build. CI fails if `public/` is out of date with the source.
+- The HD wolf head (0.8 MB) only downloads when someone picks it or meets armored Wolf Pack raiders.
