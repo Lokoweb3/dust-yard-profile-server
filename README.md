@@ -87,3 +87,6 @@ Not legal advice; have a lawyer confirm the settings below.
 - **Chat retention:** chat messages are deleted after 30 days (`CHAT_RETENTION_DAYS`).
 
 This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com.
+
+### Legal and transparency pages
+`/terms`, `/privacy`, `/risk` (drafts in `legal/`, marked for legal review) and `/drop-rates` (built live from the item catalog). Set `CONTACT_EMAIL` in Railway so the pages show your contact address. The game links to them from the main menu, the age check and the Items app.

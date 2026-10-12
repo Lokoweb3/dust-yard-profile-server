@@ -13,6 +13,12 @@ try {
   assert(page.ok, 'GET / failed with ' + page.status);
   assert(html.length > 300_000, `GET / returned only ${html.length} bytes, the game build looks broken`);
 
+  // legal and transparency pages render with no unfilled placeholders
+  for (const [path, must] of [['/terms', 'Terms of Service'], ['/privacy', 'Privacy Policy'], ['/risk', 'can\'t be undone'], ['/drop-rates', 'Chance per roll']]){
+    const r = await fetch(s.base + path), t = await r.text();
+    assert(r.ok && t.includes(must), `${path} should load and mention "${must}"`);
+    assert(!/\{\{\w+\}\}/.test(t), `${path} has an unfilled {{placeholder}}`);
+  }
   // sanctions checks: region by IP, sanctioned wallets anywhere in the request
   const post = (path, body, ip) => fetch(s.base + path, { method:'POST', headers:{ 'content-type':'application/json', ...(ip ? { 'x-forwarded-for':ip } : {}) }, body:JSON.stringify(body) });
   const st = await (await fetch(s.base + '/api/compliance')).json();

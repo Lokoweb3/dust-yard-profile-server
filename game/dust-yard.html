@@ -227,7 +227,8 @@ input, textarea, select{ -webkit-user-select:text; user-select:text; -webkit-tou
 #ageGate .agBox{ width:min(440px,92vw); background:rgba(22,20,32,.98); border:1px solid rgba(244,236,220,.25); border-radius:10px; padding:22px 24px; font-family:'Barlow Condensed',sans-serif; }
 #ageGate h2{ font-size:38px; margin:0 0 8px; } #ageGate p{ font-size:18px; margin:0 0 12px; } #ageGate .agRow{ display:flex; gap:10px; margin:0 0 14px; }
 #ageGate input{ font:600 22px 'Barlow Condensed',sans-serif; padding:9px 12px; border-radius:4px; border:1px solid rgba(244,236,220,.4); background:rgba(0,0,0,.4); color:var(--paper); width:120px; }
-#ageGate input#agYear{ width:150px; } #agMsg{ color:#ffcf8a; min-height:22px; } #ageGate small{ display:block; font-size:14px; opacity:.65; margin-top:10px; }
+#ageGate input#agYear{ width:150px; } #agMsg{ color:#ffcf8a; min-height:22px; } #ageGate small{ display:block; font-size:14px; opacity:.75; margin-top:10px; } #ageGate small a, .legalLinks a{ color:var(--amber); }
+.legalLinks{ font-size:15px; opacity:.8; margin:18px 0 0; }
 #claimPrompt{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:30; width:min(460px,90vw); background:rgba(16,15,26,.96); border:1px solid var(--amber); border-radius:8px; padding:18px 20px; box-shadow:0 10px 40px rgba(0,0,0,.6); }
 #claimPrompt b{ display:block; font-size:24px; color:var(--amber); margin-bottom:6px; } #claimPrompt p{ font-size:17px; margin:0 0 12px; } #claimPrompt .btn{ font-size:18px; padding:8px 16px; }
 #osk{ position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:40; background:rgba(12,12,20,.97); border:1px solid rgba(244,236,220,.3); border-radius:10px; padding:12px; width:min(620px,96vw); }
@@ -500,6 +501,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
     <div id="fileNote" hidden><b>You opened the game as a file.</b> The X1 wallet, live balance and controller need the game to be opened from a web address. Drag this file onto app.netlify.com/drop (renamed to index.html) and play from the link it gives you.</div>
     <div class="best" id="bestLine"></div>
     <div class="lb" id="lbBox" hidden><b id="lbTitle">Leaderboard</b><div id="lbList"></div></div>
+    <p class="legalLinks"><a data-legal="terms" target="_blank" rel="noopener">Terms</a> · <a data-legal="privacy" target="_blank" rel="noopener">Privacy</a> · <a data-legal="risk" target="_blank" rel="noopener">Crypto risks</a> · <a data-legal="drop-rates" target="_blank" rel="noopener">Drop rates</a></p>
   </section>
   <section id="coopPanel" hidden>
     <h2>Co-op</h2>
@@ -594,7 +596,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
   <div class="agRow"><input id="agMonth" inputmode="numeric" maxlength="2" placeholder="Month" aria-label="Birth month (1 to 12)"><input id="agYear" inputmode="numeric" maxlength="4" placeholder="Year" aria-label="Birth year"></div>
   <button class="btn" id="agGo" type="button">Continue</button>
   <p id="agMsg"></p>
-  <small>We only keep whether you are 13+ or 18+, never your birthday.</small>
+  <small>We only keep whether you are 13+ or 18+, never your birthday. By continuing you agree to the <a data-legal="terms" target="_blank" rel="noopener">Terms</a> and <a data-legal="privacy" target="_blank" rel="noopener">Privacy Policy</a>.</small>
 </div></div>
 <div id="claimPrompt" hidden><b id="cpTitle"></b><p id="cpText"></p>
   <div class="acctRow"><button type="button" class="btn" id="cpClaim">Claim account</button><button type="button" class="btn ghost" id="cpLater">Not now</button><button type="button" class="btn ghost" id="cpNever">Don't ask again</button></div></div>
@@ -6269,7 +6271,7 @@ function onPlazaPeers(ch){
 /* ---------- NFT companions in the Degen Market ---------- */
 let pet = null, petCfg = null;
 try { petCfg = JSON.parse(store.get('dy-companion') || 'null'); } catch(e){ petCfg = null; }
-const PET_LINES = ['gm', 'wagmi', 'LFG', 'XNT to the moon', 'ser, this is a market', 'nice camo', 'any skulls for sale?', 'hodl', 'few understand', 'gn soon?'];
+const PET_LINES = ['gm', 'LFG', 'ser, this is a market', 'nice camo', 'any skulls for sale?', 'watch your six', 'raiders incoming?', 'one more wave?', 'gn soon?'];
 function petColors(img){
   // average the most colorful pixels of the NFT art for the body color
   try {
@@ -7921,8 +7923,12 @@ $('agGo').addEventListener('click', () => {
 });
 for (const id of ['agMonth','agYear']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('agGo').click(); });
 if (ageBand() !== 'adult' && ageBand() !== 'teen') showAgeGate();
+const LEGAL_BASE_DEFAULT = 'https://dust-yard-profile-server-production.up.railway.app';
+function setLegalLinks(base){ document.querySelectorAll('a[data-legal]').forEach(a => { a.href = `${base || LEGAL_BASE_DEFAULT}/${a.dataset.legal}`; }); }
+setLegalLinks('');
 function enableServerSocial(base){
   if (window.claude || srvMode) return;
+  setLegalLinks(base);
   fetch(base + '/api/compliance', { cache:'no-store' }).then(r => r.json()).then(j => { regionBlocked = !!(j && j.blocked); }).catch(() => {});
   srvMode = true; lbDb = makeSrvDb(base); net.db = lbDb; net.room = makeSrvRoom(base);
   const ready = () => { if (guestKey && guestKey.pub){ lbId = guestKey.pub; refreshBoard(); } else setTimeout(ready, 300); };
@@ -8072,6 +8078,7 @@ function renderItemsApp(body){
   const head = document.createElement('div'); head.className = 'phHead';
   head.append(phoneBtn('‹ Home', () => { phoneApp = 'home'; renderPhone(); }, 'phBack'), phoneLine('Items', 'phTitle')); body.appendChild(head);
   if (!srvMode){ body.appendChild(phoneLine('Tradeable items drop and get claimed on your Railway site.', 'phSmall')); return; }
+  body.appendChild(phoneBtn('Drop rates and supplies', () => openSite(`${PROFILE_API || LEGAL_BASE_DEFAULT}/drop-rates`), 'phGhost'));
   if (itemCatalog && itemCatalog.season){ const left = Math.max(0, Math.ceil((itemCatalog.seasonEnds - Date.now())/864e5)); body.appendChild(phoneLine(`Season ${itemCatalog.season}: ${left} day${left === 1 ? '' : 's'} left. Season items never drop again after it ends.`, 'phOk')); }
   const un = myDrops.filter(d => d.status !== 'claimed');
   body.appendChild(phoneLine(un.length ? `${un.length} item${un.length === 1 ? '' : 's'} waiting to be claimed` : 'No unclaimed drops. Items drop from matches: bosses, deep waves and Neon District.', 'phSmall'));
