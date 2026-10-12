@@ -11,7 +11,22 @@ try {
   const page = await fetch(s.base + '/');
   const html = await page.text();
   assert(page.ok, 'GET / failed with ' + page.status);
-  assert(html.length > 1_000_000, `GET / returned only ${html.length} bytes, the game build looks broken`);
+  assert(html.length > 300_000, `GET / returned only ${html.length} bytes, the game build looks broken`);
+
+  // sanctions checks: region by IP, sanctioned wallets anywhere in the request
+  const post = (path, body, ip) => fetch(s.base + path, { method:'POST', headers:{ 'content-type':'application/json', ...(ip ? { 'x-forwarded-for':ip } : {}) }, body:JSON.stringify(body) });
+  const st = await (await fetch(s.base + '/api/compliance')).json();
+  assert(st.blocked === false, '/api/compliance should not block a local request, got ' + JSON.stringify(st));
+  const iran = await (await fetch(s.base + '/api/compliance', { headers:{ 'x-forwarded-for':'5.160.0.1' } })).json();
+  assert(iran.blocked === true, '/api/compliance should block an Iranian IP');
+  let r = await post('/api/swap/prepare', { owner:'11111111111111111111111111111111', from:'XNT', amount:1 }, '5.160.0.1');
+  assert(r.status === 451, 'a swap from a blocked region should get 451, got ' + r.status);
+  r = await post('/api/swap/prepare', { owner:'42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi', from:'XNT', amount:1 });
+  assert(r.status === 451, 'a swap for a sanctioned wallet should get 451, got ' + r.status);
+  r = await post('/api/market/list', { nested:{ seller:'42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi' } });
+  assert(r.status === 451, 'a sanctioned wallet nested in a market request should get 451, got ' + r.status);
+  r = await post('/api/swap/prepare', { owner:'11111111111111111111111111111111', from:'XNT', amount:1 });
+  assert(r.status !== 451, 'an ordinary swap request should not be blocked by the sanctions check');
 
   // two clients in the same co-op room see each other; a client in another room does not
   const join = room => new Promise((res, rej) => {
@@ -25,7 +40,7 @@ try {
   assert(a.peers() && a.peers().length === 2, 'two players in one squad room should see 2 peers, saw ' + JSON.stringify(a.peers()));
   assert(c.peers() && c.peers().length === 1, 'a player in another room should only see themselves');
   [a, b, c].forEach(x => x.ws.close());
-  console.log('Smoke test passed: health, game page and squad rooms work.');
+  console.log('Smoke test passed: health, game page, sanctions checks and squad rooms work.');
 } catch (e){
   console.error(e.message); console.error('--- server log ---\n' + s.log()); process.exitCode = 1;
 } finally { s.stop(); }

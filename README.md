@@ -73,3 +73,17 @@ Run everything locally with `npm test` (the browser test needs `npx playwright i
 - **Build:** `npm run build` writes what Railway serves: `public/index.html` (minified, about 1.2 MB) and `public/assets/` (models and textures, named by content hash so browsers cache them until they change).
 - Commit both the source and the build. CI fails if `public/` is out of date with the source.
 - The HD wolf head (0.8 MB) only downloads when someone picks it or meets armored Wolf Pack raiders.
+
+## Compliance features
+
+Not legal advice; have a lawyer confirm the settings below.
+
+- **Age check:** a neutral date-of-birth screen on first visit. Under 13 can't play; 13 to 17 can play but wallets, swaps, the NFT market and NFT claims are turned off. Only the result (`u13`, `teen`, `adult`) is stored in the player's browser, never the birthday.
+- **Sanctions screening** (`lib/compliance.js`): requests that build or sign transactions (swaps, market, item and badge claims, profile NFT) are refused with HTTP 451 when:
+  - the player's IP is in a blocked country (`BLOCKED_COUNTRIES`, default `CU,IR,KP,RU`), using a local GeoLite2 database with no outside lookups; or
+  - any wallet address in the request is on the US Treasury (OFAC) sanctioned-address list (refreshed every 12 hours, with a bundled copy as fallback; `SANCTIONS_LIST_URL` to change the source).
+  - Limitation: Crimea, Donetsk and Luhansk can't be told apart from the rest of Ukraine with country-level data.
+  - Nothing is stored: IPs and addresses are checked and forgotten.
+- **Chat retention:** chat messages are deleted after 30 days (`CHAT_RETENTION_DAYS`).
+
+This product includes GeoLite2 data created by MaxMind, available from https://www.maxmind.com.

@@ -15,7 +15,7 @@ const errors = [];
 const assets = [];
 async function player(tag, init){
   const ctx = await browser.newContext({ viewport:{ width:960, height:560 } });
-  await ctx.addInitScript(() => { localStorage.setItem('dy-tut', '1'); });
+  await ctx.addInitScript(() => { localStorage.setItem('dy-tut', '1'); if (!localStorage.getItem('dy-age') && !window.__ageTest) localStorage.setItem('dy-age', 'adult'); });
   if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(`${tag}: ${e.message}`));
@@ -47,6 +47,23 @@ try {
   for (const id of ['soldierGlb', 'soldierDiff', 'soldierNorm', 'hdWolf']) assert(assets.some(([n]) => n.startsWith(id + '.')), `${id} was never loaded`);
   await solo.context().close();
   console.log('Solo match: OK');
+
+  // ---- age check ----
+  for (const [year, band] of [[new Date().getFullYear() - 9, 'u13'], [new Date().getFullYear() - 15, 'teen'], [1990, 'adult']]){
+    const ctx = await browser.newContext({ viewport:{ width:960, height:560 } });
+    await ctx.addInitScript(() => { window.__ageTest = true; localStorage.setItem('dy-tut', '1'); });
+    const page = await ctx.newPage(); page.on('pageerror', e => errors.push(`age ${band}: ${e.message}`));
+    await page.goto(s.base + '/', { waitUntil:'load', timeout:120000 });
+    await page.waitForSelector('#ageGate', { state:'visible', timeout:60000 });
+    await page.fill('#agMonth', '1'); await page.fill('#agYear', String(year)); await page.click('#agGo');
+    await page.waitForTimeout(500);
+    const got = await page.evaluate(() => [localStorage.getItem('dy-age'), !document.getElementById('ageGate').hidden, document.getElementById('agMsg').textContent]);
+    assert(got[0] === band, `born ${year}: expected ${band}, got ${got[0]}`);
+    assert(got[1] === (band === 'u13'), `born ${year}: age screen should ${band === 'u13' ? 'stay' : 'close'}`);
+    await ctx.close();
+  }
+  assert(errors.length === 0, 'Errors during the age check:\n' + errors.join('\n'));
+  console.log('Age check: under 13 blocked, 13-17 and 18+ let in. OK');
 
   // ---- co-op ----
   const A = await player('host'), B = await player('guest');
