@@ -49,6 +49,7 @@ async function main(){
   // serve the game itself from public/index.html, so one Railway address hosts both
   let game = null; const gamePath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(gamePath)){ const raw = fs.readFileSync(gamePath); game = { raw, gz:zlib.gzipSync(raw, { level:9 }) }; console.log(`serving the game from ${gamePath} (${(raw.length/1048576).toFixed(1)} MB, ${(game.gz.length/1048576).toFixed(1)} MB gzipped)`); }
+  const assetCache = new Map();
   const send = async (built) => {
     const { blockhash } = await conn.getLatestBlockhash();
     const sigs = [];
@@ -66,6 +67,20 @@ async function main(){
         const gz = /gzip/.test(req.headers['accept-encoding'] || '');
         res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', ...(gz ? { 'Content-Encoding':'gzip' } : {}) });
         return res.end(gz ? game.gz : game.raw);
+      }
+      // models and textures, named by content hash, so browsers may cache them forever
+      const asset = req.method === 'GET' && req.url.match(/^\/assets\/([\w-]+\.[0-9a-f]{10}\.(glb|jpg|png))$/);
+      if (asset){
+        let a = assetCache.get(asset[1]);
+        if (!a){
+          const file = path.join(__dirname, 'public', 'assets', asset[1]);
+          if (!fs.existsSync(file)) return reply(404, { error:'not found' });
+          const raw = fs.readFileSync(file); a = { raw, gz:asset[2] === 'glb' ? zlib.gzipSync(raw, { level:9 }) : null, type:{ glb:'model/gltf-binary', jpg:'image/jpeg', png:'image/png' }[asset[2]] };
+          assetCache.set(asset[1], a);
+        }
+        const gz = a.gz && /gzip/.test(req.headers['accept-encoding'] || '');
+        res.writeHead(200, { 'Content-Type':a.type, 'Cache-Control':'public, max-age=31536000, immutable', 'Access-Control-Allow-Origin':'*', ...(gz ? { 'Content-Encoding':'gzip' } : {}) });
+        return res.end(gz ? a.gz : a.raw);
       }
       if (req.method === 'GET' && (req.url === '/' || req.url === '/health')){
         let xnt = null; try { xnt = (await conn.getBalance(server.publicKey))/1e9; } catch(e){}

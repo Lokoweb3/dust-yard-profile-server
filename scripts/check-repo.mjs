@@ -24,9 +24,13 @@ for (const f of files) {
 // the game file must be a real build, not an empty or half upload
 try {
   const size = statSync('public/index.html').size;
-  if (size < 1_000_000) fail.push(`public/index.html is only ${(size / 1e6).toFixed(2)} MB; the game build is about 5 MB, so the upload probably failed`);
+  if (size < 300_000) fail.push(`public/index.html is only ${(size / 1e6).toFixed(2)} MB; the game page is about 1.2 MB, so the build or upload probably failed`);
   const html = readFileSync('public/index.html', 'utf8');
   if (!html.includes('<canvas') && !html.includes('id="game"')) fail.push('public/index.html does not look like the Dust Yard game');
+  // every model and texture the page asks for must exist
+  const m = html.match(/window\.DY_ASSETS=(\{[^<]*\})/);
+  if (!m) fail.push('public/index.html has no asset list; run npm run build');
+  else for (const [id, p] of Object.entries(JSON.parse(m[1]))){ try { if (statSync('public/' + p).size < 1000) fail.push(`${p} (${id}) is nearly empty`); } catch(e){ fail.push(`${p} (${id}) is missing from public/assets`); } }
 } catch (e) { fail.push('public/index.html is missing'); }
 
 // the server must at least parse

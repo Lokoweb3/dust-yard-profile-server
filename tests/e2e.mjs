@@ -12,11 +12,14 @@ const browser = await chromium.launch({
   args:['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required']
 });
 const errors = [];
-async function player(tag){
+const assets = [];
+async function player(tag, init){
   const ctx = await browser.newContext({ viewport:{ width:960, height:560 } });
   await ctx.addInitScript(() => { localStorage.setItem('dy-tut', '1'); });
+  if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(`${tag}: ${e.message}`));
+  page.on('response', r => { if (r.url().includes('/assets/')) assets.push([r.url().split('/assets/')[1], r.status()]); });
   await page.goto(s.base + '/', { waitUntil:'load', timeout:120000 });
   await page.waitForSelector('#deployBtn', { state:'visible', timeout:120000 });
   await page.waitForTimeout(2500);
@@ -29,12 +32,19 @@ const hudShown = page => page.evaluate(() => !document.getElementById('hud').hid
 let failed = false;
 try {
   // ---- solo ----
-  const solo = await player('solo');
+  // the solo player wears the HD wolf head in third person, which loads that model on demand
+  const solo = await player('solo', () => {
+    localStorage.setItem('dy-op', JSON.stringify({ k:'animal', f:'wolfhd', w:'none', a:'sand', s:'olive', c:'red', v:'smoke', m:'none', h:'none', b:'none' }));
+    localStorage.setItem('dustyard-settings', JSON.stringify({ view:'tp' }));
+  });
   await click(solo, '[data-g="waves"]'); await click(solo, '#deployBtn');
   await solo.waitForFunction(() => !document.getElementById('hud').hidden, null, { timeout:60000 });
   await solo.waitForTimeout(4000);
   await solo.screenshot({ path:`${SHOTS}/solo.png` });
   assert(errors.length === 0, 'Errors during a solo match:\n' + errors.join('\n'));
+  const bad = assets.filter(([, s]) => s !== 200);
+  assert(!bad.length, 'Some models or textures failed to load: ' + JSON.stringify(bad));
+  for (const id of ['soldierGlb', 'soldierDiff', 'soldierNorm', 'hdWolf']) assert(assets.some(([n]) => n.startsWith(id + '.')), `${id} was never loaded`);
   await solo.context().close();
   console.log('Solo match: OK');
 
