@@ -35,3 +35,15 @@ This builds sample mint and update transactions offline and prints their sizes.
 - Keep only a small XNT balance in the fee payer and top it up as needed.
 - `profiles.json` on the volume is fine for testing. Move to a database (Railway offers Postgres) before you have many players.
 - Replace `validateSummary()` with checks against match sessions recorded by your server before rewards have real value.
+
+## Checks before every deploy (CI)
+
+Every push and pull request runs `.github/workflows/ci.yml` on GitHub:
+
+1. **Repo safety checks** (`npm run check`): no wallet keys, `data/` files or `.env` committed; `public/index.html` is a real game build (not an empty upload); the server code parses.
+2. **Server smoke test** (`npm run test:smoke`): the server starts, `/health` answers, the game page is served, and co-op squad rooms keep players apart.
+3. **Game in a real browser** (`npm run test:e2e`): a solo wave match starts with no errors, and two players form a co-op squad and start a match together. Screenshots are kept with each run.
+
+In Railway, open the service → Settings → turn on **Wait for CI**, so a deploy only goes out when these pass.
+
+Run everything locally with `npm test` (the browser test needs `npx playwright install chromium` once).
