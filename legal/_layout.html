@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} · Dust Yard</title>
+<style>
+  :root{ --bg:#1b1a26; --card:#24222f; --ink:#f4ecdc; --muted:#b9b1a3; --amber:#f0a93b; --line:rgba(244,236,220,.14); color-scheme:dark; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main{ max-width:760px; margin:0 auto; padding:28px 18px 64px; }
+  nav{ display:flex; flex-wrap:wrap; gap:6px 16px; font-size:15px; margin-bottom:22px; }
+  nav a{ color:var(--muted); text-decoration:none; } nav a[aria-current]{ color:var(--amber); font-weight:600; }
+  h1{ font-size:34px; line-height:1.15; margin:0 0 6px; } h2{ font-size:22px; margin:30px 0 8px; } h3{ font-size:18px; margin:20px 0 6px; }
+  .meta{ color:var(--muted); font-size:15px; margin:0 0 18px; }
+  .draft{ background:rgba(240,169,59,.12); border:1px solid rgba(240,169,59,.5); border-radius:8px; padding:10px 14px; font-size:15px; margin:0 0 22px; }
+  a{ color:var(--amber); } ul{ padding-left:22px; } li{ margin:4px 0; }
+  table{ width:100%; border-collapse:collapse; font-size:15px; margin:10px 0 18px; } th,td{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; } th{ color:var(--muted); font-weight:600; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 16px; margin:12px 0; }
+  footer{ margin-top:40px; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body><main>
+<nav><a href="/">← Back to the game</a><a href="/terms"{{NAV_terms}}>Terms</a><a href="/privacy"{{NAV_privacy}}>Privacy</a><a href="/risk"{{NAV_risk}}>Risks</a><a href="/drop-rates"{{NAV_drop}}>Drop rates</a></nav>
+{{BODY}}
+<footer>Dust Yard · Questions: {{CONTACT}}</footer>
+</main></body>
+</html>

@@ -33,6 +33,7 @@ const { cardSvg, fieldsFor, loadStore, saveStore, syncMessage, validateSummary }
 const { proxyFetch } = require('./lib/proxy');
 const { getSocial, loadSocial, pruneChat, socialQuery, socialWrite, startPlaza } = require('./lib/social');
 const { keys } = require('./lib/state');
+const { legalRoute } = require('./lib/legal');
 const { screen, status:complianceStatus, startSanctionsRefresh } = require('./lib/compliance');
 const { swapRoute } = require('./lib/swap');
 const { sha256hex } = require('./lib/util');
@@ -95,6 +96,7 @@ async function main(){
           image:`${PUBLIC_URL}/card/${card[1]}.svg`, attributes:Object.entries(fieldsFor(p.summary, p.fingerprint)).map(([trait_type, value]) => ({ trait_type, value })) });
       }
       const q = new URL(req.url, 'http://x');
+      if (legalRoute(req, res, q.pathname)) return;
       // sanctions checks before anything that builds or signs a transaction
       if (req.method === 'GET' && q.pathname === '/api/compliance') return reply(200, complianceStatus(req));
       const screened = await screen(req, q.pathname);
