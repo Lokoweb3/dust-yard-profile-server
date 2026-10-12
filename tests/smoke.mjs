@@ -34,6 +34,17 @@ try {
   r = await post('/api/swap/prepare', { owner:'11111111111111111111111111111111', from:'XNT', amount:1 });
   assert(r.status !== 451, 'an ordinary swap request should not be blocked by the sanctions check');
 
+  // a faked match result gets no drops
+  {
+    const nacl = (await import('tweetnacl')).default, bs58 = (await import('bs58')).default, { canonical } = (await import('../lib/util.js')).default;
+    const k = nacl.sign.keyPair(), guest = bs58.encode(k.publicKey), sign = o => bs58.encode(nacl.sign.detached(Buffer.from(canonical(o)), k.secretKey));
+    const st = { op:'start', guest, map:'yard', mode:'waves', ts:Date.now() };
+    const { sid } = await (await post('/api/match/start', { ...st, sig:sign(st) })).json();
+    assert(sid, 'match start should return a session id');
+    const en = { op:'end', guest, sid, wave:25, kills:400, heads:100, bosses:5, xp:90000, score:99999, ts:Date.now() };
+    const j = await (await post('/api/match/end', { ...en, sig:sign(en) })).json();
+    assert(j.verified === null && j.drops.length === 0, 'a faked wave 25 should verify nothing and drop nothing, got ' + JSON.stringify(j));
+  }
   // two clients in the same co-op room see each other; a client in another room does not
   const join = room => new Promise((res, rej) => {
     const ws = new WebSocket(s.base.replace('http', 'ws') + '/ws'); let last = null;
@@ -46,7 +57,7 @@ try {
   assert(a.peers() && a.peers().length === 2, 'two players in one squad room should see 2 peers, saw ' + JSON.stringify(a.peers()));
   assert(c.peers() && c.peers().length === 1, 'a player in another room should only see themselves');
   [a, b, c].forEach(x => x.ws.close());
-  console.log('Smoke test passed: health, game page, sanctions checks and squad rooms work.');
+  console.log('Smoke test passed: health, game page, sanctions checks, match checks and squad rooms work.');
 } catch (e){
   console.error(e.message); console.error('--- server log ---\n' + s.log()); process.exitCode = 1;
-} finally { s.stop(); }
+} finally { await s.stop(); }

@@ -9,8 +9,10 @@
     "dry-run": "node profile-server.js --dry-run",
     "check": "node scripts/check-repo.mjs",
     "test:smoke": "node tests/smoke.mjs",
+    "test:matches": "node tests/matches.mjs",
+    "test:db": "node tests/db.mjs",
     "test:e2e": "node tests/e2e.mjs",
-    "test": "npm run check && npm run lint && npm run test:smoke && npm run test:e2e",
+    "test": "npm run check && npm run lint && npm run test:matches && npm run test:db && npm run test:smoke && npm run test:e2e",
     "lint": "eslint --no-eslintrc --env node,es2022 --parser-options=ecmaVersion:2022 --rule 'no-undef:error' profile-server.js lib/",
     "build": "node scripts/build-game.mjs"
   },
@@ -26,6 +28,7 @@
     "@solana/web3.js": "1.95.8",
     "bs58": "5.0.0",
     "geoip-country": "5.0.202610100242",
+    "pg": "8.13.1",
     "tweetnacl": "1.0.3",
     "ws": "8.18.0"
   },
