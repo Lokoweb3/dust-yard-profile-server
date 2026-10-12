@@ -223,6 +223,11 @@ input, textarea, select{ -webkit-user-select:text; user-select:text; -webkit-tou
 .acctMsg{ font:500 14px ui-monospace,Menlo,Consolas,monospace; background:rgba(0,0,0,.4); padding:10px; border-radius:6px; white-space:pre-wrap; word-break:break-all; max-width:600px; }
 .acctCode{ width:min(560px,90vw); height:70px; font:500 12px ui-monospace,Menlo,Consolas,monospace; background:rgba(0,0,0,.4); color:var(--paper); border:1px solid rgba(244,236,220,.3); border-radius:6px; padding:8px; }
 .acctCheck{ display:flex; align-items:center; gap:8px; font-size:16px; opacity:.85; } .acctCheck input{ width:20px; height:20px; accent-color:var(--amber); }
+#ageGate{ position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; background:rgba(12,10,20,.94); }
+#ageGate .agBox{ width:min(440px,92vw); background:rgba(22,20,32,.98); border:1px solid rgba(244,236,220,.25); border-radius:10px; padding:22px 24px; font-family:'Barlow Condensed',sans-serif; }
+#ageGate h2{ font-size:38px; margin:0 0 8px; } #ageGate p{ font-size:18px; margin:0 0 12px; } #ageGate .agRow{ display:flex; gap:10px; margin:0 0 14px; }
+#ageGate input{ font:600 22px 'Barlow Condensed',sans-serif; padding:9px 12px; border-radius:4px; border:1px solid rgba(244,236,220,.4); background:rgba(0,0,0,.4); color:var(--paper); width:120px; }
+#ageGate input#agYear{ width:150px; } #agMsg{ color:#ffcf8a; min-height:22px; } #ageGate small{ display:block; font-size:14px; opacity:.65; margin-top:10px; }
 #claimPrompt{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:30; width:min(460px,90vw); background:rgba(16,15,26,.96); border:1px solid var(--amber); border-radius:8px; padding:18px 20px; box-shadow:0 10px 40px rgba(0,0,0,.6); }
 #claimPrompt b{ display:block; font-size:24px; color:var(--amber); margin-bottom:6px; } #claimPrompt p{ font-size:17px; margin:0 0 12px; } #claimPrompt .btn{ font-size:18px; padding:8px 16px; }
 #osk{ position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:40; background:rgba(12,12,20,.97); border:1px solid rgba(244,236,220,.3); border-radius:10px; padding:12px; width:min(620px,96vw); }
@@ -583,6 +588,14 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
   <p id="mkMsg"></p>
   <button class="btn ghost" id="mkClose" type="button">Close</button>
 </div>
+<div id="ageGate" hidden><div class="agBox">
+  <h2>Welcome to Dust Yard</h2>
+  <p>Please enter your date of birth.</p>
+  <div class="agRow"><input id="agMonth" inputmode="numeric" maxlength="2" placeholder="Month" aria-label="Birth month (1 to 12)"><input id="agYear" inputmode="numeric" maxlength="4" placeholder="Year" aria-label="Birth year"></div>
+  <button class="btn" id="agGo" type="button">Continue</button>
+  <p id="agMsg"></p>
+  <small>We only keep whether you are 13+ or 18+, never your birthday.</small>
+</div></div>
 <div id="claimPrompt" hidden><b id="cpTitle"></b><p id="cpText"></p>
   <div class="acctRow"><button type="button" class="btn" id="cpClaim">Claim account</button><button type="button" class="btn ghost" id="cpLater">Not now</button><button type="button" class="btn ghost" id="cpNever">Don't ask again</button></div></div>
 <div id="osk" hidden><div id="oskShow"></div><div id="oskKeys"></div><div class="oskHint">Controller: X types, Circle closes</div></div>
@@ -6795,6 +6808,7 @@ function walletOptions(){
   return [...groups.values()].sort((a,b) => (order.indexOf(a.name) + 1 || 9) - (order.indexOf(b.name) + 1 || 9));
 }
 async function connectOne(entry){
+  requireCrypto();
   const ask = entry.std ? entry.w.features['standard:connect'].connect() : entry.p.connect();
   const r = await Promise.race([ask, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 60000))]);
   let addr = '';
@@ -7024,7 +7038,7 @@ async function deriveKeypair(seed){
   }
   return nacl.sign.keyPair.fromSeed(key);
 }
-async function walletFromEntropy(ent){ const words = await entropyToPhrase(ent), kp = await deriveKeypair(await phraseToSeed(words)); return { words, kp, address:b58(kp.publicKey) }; }
+async function walletFromEntropy(ent){ requireCrypto(); const words = await entropyToPhrase(ent), kp = await deriveKeypair(await phraseToSeed(words)); return { words, kp, address:b58(kp.publicKey) }; }
 async function passKey(pass, salt){ const k = await subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']); return subtle.deriveKey({ name:'PBKDF2', salt, iterations:250000, hash:'SHA-256' }, k, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']); }
 const toHex = b => [...b].map(x => x.toString(16).padStart(2,'0')).join(''), fromHex = h => new Uint8Array(h.match(/../g).map(x => parseInt(x,16)));
 async function sealEntropy(ent, pass){ const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)); const ct = new Uint8Array(await subtle.encrypt({ name:'AES-GCM', iv }, await passKey(pass, salt), ent)); return { salt:toHex(salt), iv:toHex(iv), ct:toHex(ct) }; }
@@ -7369,6 +7383,7 @@ function signTxLocal(bytes, kp){
   throw new Error('This wallet is not part of the transaction.');
 }
 async function signTxB64(b64){
+  requireCrypto();
   const bytes = b64ToBytes(b64);
   if (x1Active && x1Active.game){ if (!gw.unlocked || !gw.kp) throw new Error('Unlock your game wallet first.'); return bytesToB64(signTxLocal(bytes, gw.kp)); }
   if (x1Active && x1Active.std){
@@ -7380,6 +7395,7 @@ async function signTxB64(b64){
   throw new Error(x1Active ? "This wallet connection can't sign marketplace transactions. Disconnect and connect again using X1 Wallet." : 'Connect a wallet in the phone first.');
 }
 async function nftFlow(prepPath, prepBody, okMsg){
+  if (!cryptoGate()) return;
   if (nftBusy) return; nftBusy = true; $('mkMsg').textContent = 'Preparing...';
   try {
     const j = await postJSON(prepPath, prepBody);
@@ -7501,6 +7517,7 @@ async function guestVerify(bytes, sig){
   return nacl.sign.detached.verify(bytes, sig, b58dec(guestKey.pub));
 }
 async function walletSign(bytes){
+  requireCrypto();
   if (!x1Active) throw new Error('No wallet is connected.');
   if (x1Active.game){ if (!gw.unlocked || !gw.kp) throw new Error('Unlock your game wallet first.'); return nacl.sign.detached(bytes, gw.kp.secretKey); }
   if (x1Active.std){
@@ -7761,6 +7778,7 @@ async function prepareNftView(){
   return nftView;
 }
 async function syncProfileNft(){
+  if (!cryptoGate()) return;
   const v = await prepareNftView(), n = nftState();
   if (!acct.claimed){ acctMsg = 'Claim your account first.'; renderAccount(); return; }
   if (!x1Active || x1Addr !== acct.wallet){ acctMsg = `Connect the wallet this account belongs to (${shortAddr(acct.wallet)}) in the phone first.`; renderAccount(); return; }
@@ -7872,8 +7890,40 @@ function makeSrvRoom(base){
     };
   } };
 }
+/* ---------- Age check and regional limits for the wallet features ---------- */
+// A neutral date-of-birth screen on first visit. Only the result is stored ('adult', 'teen' or 'u13').
+// Players under 13 can't play; players under 18 can play but can't use wallets, swaps, the NFT market
+// or NFT claims. In regions the server blocks for US sanctions, those features are off too.
+let regionBlocked = false;
+const ageBand = () => store.get('dy-age') || '';
+function cryptoBlockReason(){
+  if (ageBand() !== 'adult') return 'Wallet, swap, market and NFT features are for players 18 and older.';
+  if (regionBlocked) return 'Wallet, swap, market and NFT features are not available in your region.';
+  return '';
+}
+function cryptoGate(){ const why = cryptoBlockReason(); if (why){ toast(why, 4500); return false; } return true; }
+function requireCrypto(){ const why = cryptoBlockReason(); if (why) throw new Error(why); }
+function showAgeGate(){
+  const g = $('ageGate'); g.hidden = false;
+  if (ageBand() === 'u13'){ $('agMsg').textContent = 'Sorry, Dust Yard is for players 13 and older.'; $('agGo').hidden = true; $('agMonth').disabled = $('agYear').disabled = true; return; }
+  setTimeout(() => { if (padActive) setPadFocus($('agMonth')); else $('agMonth').focus(); }, 50);
+}
+$('agGo').addEventListener('click', () => {
+  const m = parseInt($('agMonth').value, 10), y = parseInt($('agYear').value, 10), now = new Date();
+  if (!(m >= 1 && m <= 12) || !(y >= now.getFullYear() - 120 && y <= now.getFullYear())){ $('agMsg').textContent = 'Please enter a month (1 to 12) and a 4-digit year.'; return; }
+  // age at the start of the birth month, so anyone it could round up is treated as younger
+  const age = now.getFullYear() - y - (now.getMonth() + 1 < m ? 1 : 0) - (now.getMonth() + 1 === m ? 1 : 0);
+  const band = age >= 18 ? 'adult' : age >= 13 ? 'teen' : 'u13';
+  store.set('dy-age', band); $('agMonth').value = $('agYear').value = '';
+  if (band === 'u13'){ showAgeGate(); return; }
+  $('ageGate').hidden = true;
+  if (band === 'teen') toast('Have fun! Wallet, swap, market and NFT features are for players 18 and older, so they are turned off.', 6000);
+});
+for (const id of ['agMonth','agYear']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('agGo').click(); });
+if (ageBand() !== 'adult' && ageBand() !== 'teen') showAgeGate();
 function enableServerSocial(base){
   if (window.claude || srvMode) return;
+  fetch(base + '/api/compliance', { cache:'no-store' }).then(r => r.json()).then(j => { regionBlocked = !!(j && j.blocked); }).catch(() => {});
   srvMode = true; lbDb = makeSrvDb(base); net.db = lbDb; net.room = makeSrvRoom(base);
   const ready = () => { if (guestKey && guestKey.pub){ lbId = guestKey.pub; refreshBoard(); } else setTimeout(ready, 300); };
   ready();
@@ -7961,6 +8011,7 @@ function claimBlocker(){
   return '';
 }
 async function claimDrop(d, onDone){
+  if (!cryptoGate()) return;
   const why = claimBlocker(); if (why){ toast(why, 4500); if (srvMode && acct && acct.claimed && (!x1Active || x1Addr !== acct.wallet)){ openPhone(); phoneApp = 'wallet'; renderPhone(); } return; }
   try {
     const msg = { op:'claim', guest:guestKey.pub, dropId:d.id, wallet:acct.wallet, ts:Date.now() };
@@ -8118,6 +8169,7 @@ function afterSignIn(){
 // reconnect a remembered wallet without popups, and keep it verified for a few days
 let autoTried = false;
 async function autoReconnect(){
+  if (cryptoBlockReason()) return;
   const s = loginSaved(); if (autoTried || !s || !s.addr || x1Active) return; autoTried = true;
   const g = walletOptions().find(x => x.name === s.wallet); if (!g){ autoTried = false; return; }
   for (const e of g.cands){
@@ -8146,6 +8198,7 @@ async function fetchSwapQuote(amt){
   if (phoneApp === 'swap'){ const el = $('swOut'); if (el) el.textContent = swapQuoteRes.error ? swapQuoteRes.error : `≈ ${swapQuoteRes.amountOut.toLocaleString(undefined, { maximumFractionDigits:6 })} ${swapFrom === 'XNT' ? 'USDC.X' : 'XNT'} (fee ${swapQuoteRes.feePct}%)`; }
 }
 async function doSwap(amt){
+  if (!cryptoGate()) return;
   if (swapBusy) return; swapBusy = true;
   const msg = t => { x1Msg = t; const el = $('swMsg'); if (el) el.textContent = t; };
   try {
@@ -8182,6 +8235,7 @@ function renderSwapApp(body){
 let badgeList = null;
 async function loadBadges(){ if (!srvMode || !acct || !acct.claimed) return; try { badgeList = await (await fetch(`${PROFILE_API}/api/badges?wallet=${acct.wallet}`, { cache:'no-store' })).json(); } catch(e){} }
 async function claimBadge(b){
+  if (!cryptoGate()) return;
   try {
     if (!x1Active || x1Addr !== acct.wallet) throw new Error(`connect ${shortAddr(acct.wallet)} first`);
     const ts = Date.now(), msg = `Dust Yard achievement claim\nWallet: ${acct.wallet}\nAchievement: ${b.id}\nIssued At: ${ts}`;
@@ -9670,6 +9724,7 @@ addEventListener('gamepaddisconnected', () => { padIndex = null; setPadActive(fa
 let padNavT = 0, padNavDir = '', padFocusEl = null, padClicking = false;
 function padPanel(){
   if (!$('osk').hidden) return $('osk');
+  if (!$('ageGate').hidden) return $('ageGate');
   if (!$('claimPrompt').hidden) return $('claimPrompt');
   if (!$('loginPanel').hidden) return $('loginPanel');
   if (uiOpen && !$('marketPanel').hidden) return $('marketPanel');

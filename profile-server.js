@@ -31,8 +31,9 @@ const { loadMarket, marketRoute } = require('./lib/market');
 const { portfolioRoute } = require('./lib/portfolio');
 const { cardSvg, fieldsFor, loadStore, saveStore, syncMessage, validateSummary } = require('./lib/profiles');
 const { proxyFetch } = require('./lib/proxy');
-const { getSocial, loadSocial, socialQuery, socialWrite, startPlaza } = require('./lib/social');
+const { getSocial, loadSocial, pruneChat, socialQuery, socialWrite, startPlaza } = require('./lib/social');
 const { keys } = require('./lib/state');
+const { screen, status:complianceStatus, startSanctionsRefresh } = require('./lib/compliance');
 const { swapRoute } = require('./lib/swap');
 const { sha256hex } = require('./lib/util');
 
@@ -44,7 +45,7 @@ async function main(){
   if (!fs.existsSync(keyPath)){ fs.writeFileSync(keyPath, JSON.stringify(Array.from(Keypair.generate().secretKey)), { mode:0o600 }); console.log('Created a new server keypair at ' + keyPath); }
   const server = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keyPath, 'utf8'))));
   const conn = new Connection(RPC, 'confirmed');
-  const store = loadStore(); loadSocial(); loadItems(); loadMarket();
+  const store = loadStore(); loadSocial(); pruneChat(); loadItems(); loadMarket();
   keys.server = server; keys.secret = server.secretKey;
   // serve the game itself from public/index.html, so one Railway address hosts both
   let game = null; const gamePath = path.join(__dirname, 'public', 'index.html');
@@ -94,6 +95,11 @@ async function main(){
           image:`${PUBLIC_URL}/card/${card[1]}.svg`, attributes:Object.entries(fieldsFor(p.summary, p.fingerprint)).map(([trait_type, value]) => ({ trait_type, value })) });
       }
       const q = new URL(req.url, 'http://x');
+      // sanctions checks before anything that builds or signs a transaction
+      if (req.method === 'GET' && q.pathname === '/api/compliance') return reply(200, complianceStatus(req));
+      const screened = await screen(req, q.pathname);
+      if (screened.blocked) return reply(screened.blocked.status, { error:screened.blocked.error });
+      req = screened.req;
       if (q.pathname === '/api/portfolio'){
         try { const handled = await portfolioRoute(req, res, q, reply, conn); if (handled !== false) return; } catch(e){ console.error('portfolio error', e.message); return reply(400, { error:'portfolio unavailable right now' }); }
       }
@@ -163,7 +169,7 @@ async function main(){
       reply(200, { ok:true, mint, signatures:sigs });
     } catch(e){ console.error(e); reply(500, { error:'server error' }); }
   });
-  startPlaza(httpServer);
+  startPlaza(httpServer); startSanctionsRefresh();
   httpServer.listen(+process.env.PORT || 8787, '0.0.0.0', () => console.log(`profile server on ${PUBLIC_URL}, fee payer ${server.publicKey.toBase58()}`));
 }
 

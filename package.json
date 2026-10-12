@@ -25,6 +25,7 @@
     "@solana/spl-token-metadata": "0.1.6",
     "@solana/web3.js": "1.95.8",
     "bs58": "5.0.0",
+    "geoip-country": "5.0.202610100242",
     "tweetnacl": "1.0.3",
     "ws": "8.18.0"
   },
