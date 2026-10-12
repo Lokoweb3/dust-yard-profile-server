@@ -10,7 +10,8 @@
     "check": "node scripts/check-repo.mjs",
     "test:smoke": "node tests/smoke.mjs",
     "test:e2e": "node tests/e2e.mjs",
-    "test": "npm run check && npm run test:smoke && npm run test:e2e"
+    "test": "npm run check && npm run lint && npm run test:smoke && npm run test:e2e",
+    "lint": "eslint --no-eslintrc --env node,es2022 --parser-options=ecmaVersion:2022 --rule 'no-undef:error' profile-server.js lib/"
   },
   "engines": {
     "node": ">=20"
@@ -27,6 +28,7 @@
     "@metaplex-foundation/mpl-token-metadata": "3.3.0"
   },
   "devDependencies": {
-    "playwright": "1.55.0"
+    "playwright": "1.55.0",
+    "eslint": "8.57.0"
   }
 }

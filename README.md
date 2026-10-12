@@ -47,3 +47,22 @@ Every push and pull request runs `.github/workflows/ci.yml` on GitHub:
 In Railway, open the service → Settings → turn on **Wait for CI**, so a deploy only goes out when these pass.
 
 Run everything locally with `npm test` (the browser test needs `npx playwright install chromium` once).
+
+## Code map
+
+`profile-server.js` starts the server and routes each request. Everything else lives in `lib/`:
+
+| File | What it does |
+|---|---|
+| `lib/config.js` | Settings read from environment variables (RPC, public URL, data folder) |
+| `lib/state.js` | The server keypair, shared by the modules that sign transactions |
+| `lib/util.js` | Small shared helpers: stable JSON, hashing, signature checks, string limits |
+| `lib/chain.js` | X1 transaction helpers: fitting compute limits, building profile NFT transactions |
+| `lib/profiles.js` | Player profiles: signed sync messages, stat checks, the player card image |
+| `lib/social.js` | Leaderboard, chat and market posts, plus live WebSocket rooms (plaza and co-op squads) |
+| `lib/proxy.js` | Fetches NFT art from allowlisted hosts so the game can draw it in 3D |
+| `lib/items.js` | Tradeable cosmetics: catalog, match drops, item NFTs with royalties |
+| `lib/market.js` | In-game NFT marketplace: non-custodial listings and purchases in XNT |
+| `lib/swap.js` | XDEX swaps between XNT and USDC.X |
+| `lib/badges.js` | Achievement badges: free soulbound NFTs for milestones |
+| `lib/portfolio.js` | Wallet portfolio with dollar values |
