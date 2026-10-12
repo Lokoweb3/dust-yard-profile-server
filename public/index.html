@@ -12358,6 +12358,8 @@ function openSite(u){
 let webUrl = '';
 function openInPhone(u){
   const x = cleanUrl(u); if (!x){ x1Msg = 'Only https:// links can be opened.'; renderPhone(); return; }
+  // wallet sites only connect in a full tab, so send them straight there
+  if (/(^|\.)x1brains\.io$/i.test(x.hostname)){ openSite(x.href); toast(`X1 Brains opened in a new tab. Connect the same wallet there${x1Addr ? ' (' + shortAddr(x1Addr) + ')' : ''} to buy or sell.`, 5000); return; }
   if ($('phone').hidden){ openPhone(); }
   webUrl = x.href; phoneApp = 'web'; renderPhone();
 }
@@ -14134,7 +14136,7 @@ async function coopWatchLobby(){
     coopLobby = await room.join('dy-coop-lobby');
     coopLobby.unsub = coopLobby.onPeers(ch => {
       coopLobbyList = ch.peers.filter(p => !p.isMe && p.presence && coopCodeOk(p.presence.code || '') && p.presence.st === 'lobby').map(p => p.presence);
-      if (!$('coopPanel').hidden && !coop) renderCoop();
+      if (!$('coopPanel').hidden && !coop) coopRenderIfChanged();
     }, () => {});
   } catch(e){ coopLobby = null; }
 }
@@ -14176,7 +14178,7 @@ function coopPeers(ch){
     if (id === coop.hostPeer && coop.guest){ coop.hostPeer = null; if (coop.started && state === 'play'){ toast('The host left, so the match ended.', 4000); coopEnd(); } }
     else if (coop.started) feed(`${m.name} left`);
   }
-  if (!$('coopPanel').hidden) renderCoop();
+  if (!$('coopPanel').hidden) coopRenderIfChanged();
 }
 function coopRemoveMate(m){ if (m.o) scene.remove(m.o.root); if (m.tag) scene.remove(m.tag); if (m.pet) scene.remove(m.pet.g); m.o = null; }
 const coopHostPr = () => { const h = coop && coop.hostPeer && coop.mates.get(coop.hostPeer); return h ? h.pr : null; };
@@ -14211,6 +14213,9 @@ function coopBegin(){
   for (const m of coop.mates.values()){ m.dmgSeen.clear(); m.hurt = 0; }
   P.down = false; P.dead = false;
   gameMode = 'coop'; startGame(true);
+  // spread the squad out so nobody spawns inside a teammate
+  const ids = [coop.me, ...coop.mates.keys()].filter(Boolean).sort(), i = Math.max(0, ids.indexOf(coop.me));
+  if (i > 0){ P.pos.x += (i % 2 ? 1 : -1)*Math.ceil(i/2)*2.6; collide(P.pos, P.r, P.pos.y); }
   const n = coop.mates.size + 1;
   toast(`Co-op: ${n} player${n === 1 ? '' : 's'}. Hold the line together. Revive downed teammates by holding ${padActive ? 'Square' : isTouch ? 'the Revive button' : 'E'} next to them.`, 6000);
 }
@@ -14393,7 +14398,7 @@ function coopDrawMate(m, dt){
   m.spd = (m.spd || 0) + (Math.hypot(m.pos.x - ox, m.pos.z - oz)/Math.max(dt, 1e-3) - (m.spd || 0))*Math.min(1, dt*6);
   m.yaw = angleLerp(m.yaw, +pr.yaw || 0, Math.min(1, dt*14));
   if (!m.o) return;
-  const o = m.o; o.root.visible = pr.dn !== 2; opSetGun(o, ['rifle','smg','shotgun','sniper','pistol','launcher'].includes(pr.w) ? pr.w : 'rifle');
+  const o = m.o; o.root.visible = pr.dn !== 2 && (m.pos.distanceTo(P.pos) > .9 || tpBlend > .5); opSetGun(o, ['rifle','smg','shotgun','sniper','pistol','launcher'].includes(pr.w) ? pr.w : 'rifle');
   o.root.position.copy(m.pos); o.root.rotation.y = m.yaw + Math.PI;
   if ((pr.sh || 0) !== m.sh){ m.sh = pr.sh || 0; m.flashT = .05; o.recoil = Math.min(.12, o.recoil + .05);
     const mz = o.gun && o.gun.userData.mz.getWorldPosition(new V3()), dir = new V3(0, 0, -1).applyEuler(new THREE.Euler(+pr.pt || 0, m.yaw, 0, 'YXZ'));
@@ -14407,9 +14412,20 @@ function coopDrawMate(m, dt){
     pg.rotation.y = angleLerp(pg.rotation.y, pv > .4 ? Math.atan2(pg.position.x - px, pg.position.z - pz) : ry, Math.min(1, dt*6)); animatePet(m.pet, pv, dt); }
 }
 // ---- the Co-op screen ----
+// the live connection reports peers about 10 times a second; only redraw when something visible changed
+let coopSig = '';
+function coopRenderIfChanged(){
+  const h = coop && coopHostPr();
+  const sig = JSON.stringify(coop ? [coop.code, coop.host, [...coop.mates.values()].map(m => [m.name, !!(m.pr && m.pr.host)]), h && h.co ? [h.co.st, h.co.map] : null, selectedMap]
+    : coopLobbyList.map(l => [l.code, l.name, l.n, l.map]));
+  if (sig !== coopSig) renderCoop();
+}
 function openCoop(){ show('coopPanel'); coopWatchLobby(); renderCoop(); }
 function renderCoop(){
-  const box = $('coopBody'); box.innerHTML = '';
+  const box = $('coopBody'), typed = $('coopCode') ? $('coopCode').value : '', hadFocus = document.activeElement && document.activeElement.id === 'coopCode';
+  box.innerHTML = '';
+  coopSig = '';
+  setTimeout(() => { const h = coop && coopHostPr(); coopSig = JSON.stringify(coop ? [coop.code, coop.host, [...coop.mates.values()].map(m => [m.name, !!(m.pr && m.pr.host)]), h && h.co ? [h.co.st, h.co.map] : null, selectedMap] : coopLobbyList.map(l => [l.code, l.name, l.n, l.map])); }, 0);
   const p = (t, c) => { const e = document.createElement('p'); e.className = c || 'stat clsNote'; e.textContent = t; box.appendChild(e); return e; };
   const btn = (t, fn, cls) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (cls || ''); b.textContent = t; b.addEventListener('click', fn); return b; };
   const row = () => { const d = document.createElement('div'); d.className = 'acctRow'; box.appendChild(d); return d; };
@@ -14418,8 +14434,9 @@ function renderCoop(){
     p('Team up with up to three friends against the raider waves. Revive each other when someone goes down.', 'acctSub');
     row().append(btn('Host a squad', () => { const c = Math.random().toString(36).slice(2, 7).replace(/[^a-z0-9]/g, 'x'); coopJoin(c, true); }));
     p('Have a squad code?', 'pick');
-    const r = row(), inp = document.createElement('input'); inp.className = 'acctInput'; inp.placeholder = 'Squad code'; inp.maxLength = 6; inp.id = 'coopCode'; inp.setAttribute('aria-label', 'Squad code');
+    const r = row(), inp = document.createElement('input'); inp.className = 'acctInput'; inp.placeholder = 'Squad code'; inp.maxLength = 6; inp.id = 'coopCode'; inp.setAttribute('aria-label', 'Squad code'); inp.value = typed;
     r.append(inp, btn('Join', () => { const c = inp.value.trim().toLowerCase(); if (!coopCodeOk(c)){ toast('Enter the 4 to 6 letter squad code.', 2500); return; } coopJoin(c, false); }, 'ghost'));
+    if (hadFocus) setTimeout(() => { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 0);
     p('Open squads', 'pick');
     if (!coopLobbyList.length) p('No open squads right now. Host one and share the code.');
     else { const r2 = row(); for (const s of coopLobbyList.slice(0, 8)) r2.append(btn(`${String(s.name || 'Degen').slice(0, 16)} · ${Math.min(4, +s.n || 1)}/4 · ${s.map === 'neon' ? 'Neon District' : 'Dust Yard'}`, () => coopJoin(String(s.code), false), 'ghost')); }

@@ -6,7 +6,11 @@
   "main": "profile-server.js",
   "scripts": {
     "start": "node profile-server.js",
-    "dry-run": "node profile-server.js --dry-run"
+    "dry-run": "node profile-server.js --dry-run",
+    "check": "node scripts/check-repo.mjs",
+    "test:smoke": "node tests/smoke.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "test": "npm run check && npm run test:smoke && npm run test:e2e"
   },
   "engines": {
     "node": ">=20"
@@ -21,5 +25,8 @@
     "@metaplex-foundation/umi": "0.9.2",
     "@metaplex-foundation/umi-bundle-defaults": "0.9.2",
     "@metaplex-foundation/mpl-token-metadata": "3.3.0"
+  },
+  "devDependencies": {
+    "playwright": "1.55.0"
   }
 }
