@@ -3266,7 +3266,19 @@ const sfx = {
   reloadOut: () => { tone(320, 0.05, 0.08); tone(250, 0.05, 0.08, 'square', 0.12); },
   reloadIn: () => { tone(430, 0.04, 0.1); tone(620, 0.05, 0.1, 'square', 0.09); },
   hurt: () => blast(0.28, 500, 0.18, true),
-  slide: () => blast(0.22, 900, 0.55, false)
+  slide: () => blast(0.22, 900, 0.55, false),
+  // a growl that drops in pitch, under a rush of breath; deeper for big animals
+  roar: k => {
+    if (!ac) return; const t = ac.currentTime, deep = k === 'bear' || k === 'ape' || k === 'lion', hi = k === 'fox' || k === 'wolf';
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter();
+    o.type = 'sawtooth'; o2.type = 'square'; const f0 = hi ? 330 : deep ? 120 : 180;
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0*(hi ? 1.5 : .55), t + (hi ? .5 : .9)); if (hi) o.frequency.exponentialRampToValueAtTime(f0*.9, t + 1.3);
+    o2.frequency.setValueAtTime(f0*.5 + 3, t); o2.frequency.exponentialRampToValueAtTime(f0*.3, t + 1.1);
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(hi ? 2400 : 1300, t); lp.frequency.exponentialRampToValueAtTime(400, t + 1.3);
+    g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.32, t + .08); g.gain.exponentialRampToValueAtTime(.001, t + 1.4);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(master); o.start(t); o2.start(t); o.stop(t + 1.45); o2.stop(t + 1.45);
+    blast(.3, deep ? 600 : 1100, 1.1, false, .02);
+  }
 };
 
 /* ---------- Shared helpers ---------- */
@@ -4695,7 +4707,7 @@ function enemyThrow(e){
 const needOf = S => S.need - (perk('hardline') ? 1 : 0);
 const STREAKS = [ { k:'uav', name:'UAV', need:3, key:'7', pad:'D-pad up' }, { k:'air', name:'Airstrike', need:5, key:'8', pad:'D-pad right' }, { k:'drone', name:'Attack drone', need:7, key:'9', pad:'D-pad down' } ];
 let streak = 0, uavT = 0, airAim = false, drone = null;
-const sInv = { uav:0, air:0, drone:0, care:0, predator:0 }, airJobs = [];
+const sInv = { uav:0, air:0, drone:0, care:0, predator:0, howl:0, berserk:0, alpha:0 }, airJobs = [];
 function addStreakKill(){
   streak++;
   const S = STREAKS.find(s => needOf(s) === streak);
@@ -4711,8 +4723,85 @@ function useStreak(k){
   if (k === 'uav'){ sInv.uav--; uavT = 30; sfx.radio(); feed('UAV online'); }
   else if (k === 'care'){ sInv.care--; dropCarePackage(); }
   else if (k === 'predator'){ sInv.predator--; launchPredator(); }
+  else if (k === 'howl'){ sInv.howl--; useHowl(); }
+  else if (k === 'berserk' || k === 'alpha'){ if (rage.t > 0) return; sInv[k]--; startRage(k === 'alpha'); }
   else if (k === 'air'){ airAim = true; ads = false; toast(isTouch ? 'Aim at a spot and tap Fire to call the airstrike' : 'Aim at a spot and fire to call the airstrike. Aim down sights to cancel.', 3000); }
   else if (!drone){ sInv.drone--; spawnDrone(); sfx.radio(); feed('Attack drone deployed'); }
+}
+/* ---------- Animal operators: war cry, Berserker and Alpha Rage ---------- */
+const rage = { t:0, max:0, alpha:false, cd:0, swing:0, side:1 };
+let rageFx = 0;   // 0..1, drives the red grade, the body glow and the claws
+function animalSpecies(){ const o = opMine(); let sp = OP_ANIMAL.find(x => x[0] === o.f) || OP_ANIMAL[0]; if (sp[4]) sp = OP_ANIMAL.find(x => x[0] === sp[4]); return sp; }
+function warCryName(){ const k = animalSpecies()[0]; return k === 'wolf' || k === 'fox' ? 'Howl' : k === 'ape' ? 'Chest Pound' : 'Roar'; }
+function useHowl(){
+  sfx.roar(animalSpecies()[0]); shake = Math.max(shake, .05); rumble(.8, .6, 400);
+  let n = 0;
+  for (const e of enemies){
+    if (!e.alive || e.remote) continue;
+    const d = Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z);
+    if (d < 16){ e.stunT = Math.max(e.stunT || 0, 3*(1 - d/20)); e.sees = false; e.crouching = false; e.flinch = .3; n++; }
+  }
+  uavT = Math.max(uavT, 15);
+  banner(warCryName()); feed(n ? `${warCryName()}: ${n} raider${n > 1 ? 's' : ''} stunned, the rest revealed` : `${warCryName()}: raiders revealed`, true);
+}
+function startRage(alpha){
+  rage.t = rage.max = alpha ? 22 : 15; rage.alpha = alpha; rage.cd = 0;
+  reloading = false; ads = false; inspectT = 0; buildClaws();
+  sfx.roar(animalSpecies()[0]); shake = Math.max(shake, .06); rumble(1, .8, 500);
+  banner(alpha ? 'Alpha Rage' : 'Berserker'); toast(isTouch ? 'Claws out! Tap Fire to strike. Kills heal you.' : 'Claws out! Fire to strike. Kills heal you.', 3000);
+}
+function rageKill(){
+  if (rage.t <= 0) return;
+  P.hp = Math.min(100, P.hp + (rage.alpha ? 35 : 25));
+  if (rage.alpha){ rage.t = Math.min(rage.t + 2, 30); rage.max = Math.max(rage.max, rage.t); }
+}
+function clawSwipe(){
+  if (rage.cd > 0 || P.down || P.dead || state !== 'play') return;
+  rage.cd = rage.alpha ? .26 : .32; rage.swing = 1; rage.side = -rage.side; sfx.swish();
+  const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)); let best = null, bd = 6;
+  for (const e of enemies){
+    if (!e.alive) continue;
+    const d = new V3(e.pos.x - P.pos.x, 0, e.pos.z - P.pos.z), dist = d.length();
+    if (Math.abs((e.y || 0) - P.pos.y) > 1.4) continue;
+    const dot = d.normalize().dot(f);
+    if ((dist < 3.2 && dot > .35) || (dist < 6 && dot > .8)){ if (dist < bd){ best = e; bd = dist; } }
+  }
+  if (!best) return;
+  if (bd > 2.4){ const d = new V3(best.pos.x - P.pos.x, 0, best.pos.z - P.pos.z), l = d.length(); P.pos.addScaledVector(d.normalize(), Math.max(0, l - 1.4)); collide(P.pos, .4); }   // pounce
+  damageEnemy(best, rage.alpha ? 190 : 140, false, f, 'claw'); sfx.stab(); shake = Math.max(shake, .03); rumble(.7, .5, 120);
+}
+// first-person paws: furred forearms with three claws each, swiping in turn
+const clawG = new THREE.Group(); clawG.visible = false; gunCam.add(clawG);
+const clawPaws = [];
+function buildClaws(){
+  for (const c of [...clawG.children]) clawG.remove(c);
+  clawPaws.length = 0;
+  const sp = animalSpecies(), furC = sp[0] === 'panda' ? 0x1c1c1e : sp[0] === 'ape' ? 0x3a3533 : sp[3];
+  const fur = new THREE.MeshStandardMaterial({ color:furC, roughness:1, map:furTex }), claw = new THREE.MeshStandardMaterial({ color:0xf1ead8, roughness:.3, emissive:0xff3010, emissiveIntensity:0 });
+  for (const side of [-1, 1]){
+    const g = new THREE.Group();
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(.055, .07, .5, 12), fur); arm.rotation.x = HP; arm.position.set(0, 0, .22); g.add(arm);
+    const paw = new THREE.Mesh(new THREE.SphereGeometry(.075, 14, 10), fur); paw.scale.set(1.1, .7, 1.2); g.add(paw);
+    for (const o of [-.035, 0, .035]){ const c = new THREE.Mesh(new THREE.ConeGeometry(.011, sp[0] === 'ape' ? .06 : .13, 6), claw); c.rotation.x = -HP + .25; c.position.set(o, .01, -.13); g.add(c); }
+    g.scale.setScalar(.85);
+    g.userData = { side, rest:new V3(side*.23, -.21, -.46), claw };
+    clawG.add(g); clawPaws.push(g);
+  }
+}
+function updateRage(dt){
+  if (rage.cd > 0) rage.cd -= dt;
+  rage.swing = Math.max(0, rage.swing - dt*4.5);
+  if (rage.t > 0){ rage.t -= dt; if (rage.t <= 0){ rage.t = 0; feed(rage.alpha ? 'Alpha Rage over' : 'Berserker over'); } }
+  rageFx = rage.t > 0 ? Math.min(1, rage.t/1.5, (rage.max - rage.t)*3) : 0;
+  clawG.visible = rage.t > 0 && !hubMode && !predator && tpBlend < .3;
+  if (!clawG.visible) return;
+  const breathe = Math.sin(T*6)*.008, bob = Math.sin(T*9)*Math.min(1, Math.hypot(P.vel.x, P.vel.z)/6)*.02;
+  for (const g of clawPaws){
+    const U = g.userData, active = U.side === rage.side ? Math.sin((1 - rage.swing)*Math.PI)*(rage.swing > 0 ? 1 : 0) : 0;
+    g.position.copy(U.rest).add(new V3(-U.side*active*.3, breathe + bob + active*.14, -active*.18));
+    g.rotation.set(.25 + active*.5, U.side*.28 + U.side*active*.6, U.side*(.2 + active*.9));
+    U.claw.emissiveIntensity = rageFx*(1.2 + Math.sin(T*10)*.3);
+  }
 }
 function useBestStreak(){ if (airAim){ useStreak('air'); return; } for (const S of STREAKS.slice().reverse()) if (sInv[S.k] && !(S.k === 'drone' && drone)){ useStreak(S.k); return; } }
 const airMark = new THREE.Group(); airMark.visible = false; scene.add(airMark);
@@ -5698,6 +5787,7 @@ function updateWeapon(dt){
   }
   if (inspectT > 0) inspectT = Math.max(0, inspectT - dt);
   if (predator){ if (firing) predator.boost = true; }
+  else if (rage.t > 0){ if (firing) clawSwipe(); fireQueued = false; }
   else if (firing && (W.auto || fireQueued) && canFire()){ shoot(); fireQueued = false; }
   if (!firing && T - lastShot > 0.25) shotsInRow = 0;
 }
@@ -5778,7 +5868,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
   if (!e.alive) return;
   if (!src && perk('stopping')) dmg *= 1.25;
   if (e.type === 'armored' && !head && src !== 'knife' && src !== 'nade' && src !== 'air') dmg *= .5;
-  if (e.type === 'boss'){ if (src === 'knife') dmg = 120; else if (!head && src !== 'nade' && src !== 'air') dmg *= .4; }
+  if (e.type === 'boss'){ if (src === 'knife') dmg = 120; else if (src === 'claw') dmg = rage.alpha ? 220 : 160; else if (!head && src !== 'nade' && src !== 'air') dmg *= .4; }
   if (coop && coop.guest && e.remote) coopNoteHit(e, dmg);
   e.hp -= dmg; e.flash = 0.08; e.flinch = 0.18; e.sees = true; e.reaction = Math.min(e.reaction, 0.25);
   const killed = e.hp <= 0;
@@ -5807,10 +5897,11 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
       const r = e.rifle; scene.attach(r);
       debris.push({ obj:r, vel:new V3(dir.x*1.5 + (Math.random()-.5), 1.5, dir.z*1.5 + (Math.random()-.5)), spin:new V3((Math.random()-.5)*6, 0, (Math.random()-.5)*6), life:2.9 });
     }
-    const LBL = { knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill', pet:'Companion kill' };
-    const pts = Math.round((src === 'knife' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' || src === 'pet' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
+    if (src === 'claw' || rage.t > 0) rageKill();
+    const LBL = { claw:'Claw kill', knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill', pet:'Companion kill' };
+    const pts = Math.round((src === 'knife' || src === 'claw' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' || src === 'pet' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
     const tn = e.type === 'armored' ? 'Armored down' : e.type === 'sniper' ? 'Sniper down' : e.type === 'rusher' ? 'Rusher down' : 'Enemy down';
-    let xp = 100*(e.scoreMul || 1)*(src === 'air' || src === 'drone' || src === 'pet' ? .5 : 1) + (head ? 50 : 0) + (src === 'knife' ? 50 : 0);
+    let xp = 100*(e.scoreMul || 1)*(src === 'air' || src === 'drone' || src === 'pet' ? .5 : 1) + (head ? 50 : 0) + (src === 'knife' || src === 'claw' ? 50 : 0);
     if (e.type === 'boss'){
       bossKills++; queuePrompt('boss'); addMilestone(`Juggernaut kill, wave ${wave}`); xp = 2500; score += 2500; sInv.air++; feed('Juggernaut down: +2500 and a free airstrike', true); banner('Juggernaut down');
       for (const k of ['ammo','health','nade']) spawnPickup(k, e.pos.x + (Math.random()-.5)*3, e.pos.z + (Math.random()-.5)*3);
@@ -5838,6 +5929,7 @@ function damagePlayer(d, from, explosive){
   if (hubMode) return;
   if (state !== 'play') return;
   if (tdm && (tdm.protT > 0 || tdm.over)) return;
+  if (rage.t > 0) d *= rage.alpha ? .3 : .5;   // berserker: shrugs off half the damage (Alpha Rage: 70%)
   if (tut) return;
   if (explosive && perk('armor')) d *= .65;
   P.hp -= d; P.lastHit = T; sfx.hurt(); rumble(.8, .3, 160);
@@ -5957,12 +6049,12 @@ function updateHUD(dt){
   vigPulse = Math.max(0, vigPulse - dt*1.4);
   $('vignette').style.opacity = Math.min(1, (1 - P.hp/100)*0.85 + vigPulse).toFixed(3);
   $('lens').style.opacity = (0.55 + adsF*0.45).toFixed(3);
-  const sk = streak + '|' + Object.values(sInv).join(',') + '|' + (uavT > 0) + !!drone + !!predator + padActive + STREAKS.map(S => S.k).join();
+  const sk = streak + '|' + Object.values(sInv).join(',') + '|' + (uavT > 0) + !!drone + !!predator + (rage.t > 0) + rage.alpha + padActive + STREAKS.map(S => S.k).join();
   if (hud.sk !== sk){
     hud.sk = sk; $('streakNum').textContent = `Streak ${streak}`;
     [...$('streaks').querySelectorAll('span')].forEach((el,i) => { const S = STREAKS[i], n = sInv[S.k];
       if (!S){ el.hidden = true; return; } el.hidden = false;
-      const active = (S.k === 'uav' && uavT > 0) || (S.k === 'drone' && drone) || (S.k === 'predator' && predator);
+      const active = (S.k === 'uav' && uavT > 0) || (S.k === 'drone' && drone) || (S.k === 'predator' && predator) || ((S.k === 'berserk' || S.k === 'alpha') && rage.t > 0 && rage.alpha === (S.k === 'alpha'));
       el.className = n ? 'ready' : active ? 'active' : streak >= needOf(S) ? 'used' : '';
       el.innerHTML = (isTouch ? '' : `<kbd>${padActive ? ['▲','▶','▼'][i] : S.key}</kbd>`) + S.name + `<em>${n ? (n > 1 ? '×' + n : 'Ready') : active ? 'Active' : Math.max(0, needOf(S) - streak) + ' more'}</em>`; });
   }
@@ -6016,7 +6108,7 @@ function updatePlayer(dt){
   const wantSprint = (keys.ShiftLeft || keys.ShiftRight || padSprint || (touch.moveId !== null && touch.my < -0.92)) && fz > 0.5;
   if (wantSprint && P.crouch && P.slideT <= 0){ P.crouch = false; $('tCrouch').classList.remove('on'); }
   const sprint = wantSprint && !ads && !firing && !P.crouch;
-  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : (sprint ? 9 : 5.6)))*(perk('quick') ? 1.06 : 1);
+  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : (sprint ? 9 : 5.6)))*(perk('quick') ? 1.06 : 1)*(rage.t > 0 ? (rage.alpha ? 1.4 : 1.3) : 1);
   const s = Math.sin(P.yaw), c = Math.cos(P.yaw);
   const jump = keys.Space || touch.jump; touch.jump = false;
   if (P.slideT > 0){
@@ -6093,7 +6185,7 @@ function update(dt){
   camera.rotation.set(P.pitch + (Math.random()-.5)*shake + sy, P.yaw + (Math.random()-.5)*shake + sx, rollZ);
   scene.updateMatrixWorld();
 
-  updateWeapon(dt);
+  updateWeapon(dt); updateRage(dt);
   updateCombat(dt);
   updateStreaks(dt);
   updateBarrels(dt);
@@ -6166,7 +6258,7 @@ function update(dt){
     V.right.position.set(V.rightRest.x + V.boltReach.x*reach, V.rightRest.y + V.boltReach.y*reach, V.rightRest.z + V.boltReach.z*reach + back*.08*reach);
     gun.rotation.z += reach*.12; gun.rotation.x += reach*.05;
   }
-  gun.visible = !scoped && !hubMode && !predator; if (V.rocketHead) V.rocketHead.visible = W.ammo > 0;
+  gun.visible = !scoped && !hubMode && !predator && rage.t <= 0; if (V.rocketHead) V.rocketHead.visible = W.ammo > 0;
   if (V.slide){ slideKick *= Math.exp(-dt*28); V.slide.position.z = W.ammo === 0 ? .035 : slideKick*.035; }
   flashT -= dt; V.flash.visible = flashT > 0;
   muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*40);
@@ -6228,7 +6320,7 @@ function resetGame(){
   camH = 1.62; landDip = 0; rollZ = 0; shake = 0; strafeF = 0; mdx = mdy = 0; sway.x = sway.y = 0; slideF = 0; $('tCrouch').classList.remove('on');
   P.pos.set(0,0,36); P.vel.set(0,0,0);
   WEAPONS.forEach(W => { applyAtt(W); W.ammo = W.c.mag; W.reserve = W.res; });
-  streak = 0; uavT = 0; airAim = false; airMark.visible = false; sInv.uav = sInv.air = sInv.drone = sInv.care = sInv.predator = 0; endPredator(false); for (const c of careCrates) scene.remove(c.g); careCrates.length = 0;
+  streak = 0; uavT = 0; airAim = false; airMark.visible = false; sInv.uav = sInv.air = sInv.drone = sInv.care = sInv.predator = sInv.howl = sInv.berserk = sInv.alpha = 0; rage.t = 0; rageFx = 0; endPredator(false); for (const c of careCrates) scene.remove(c.g); careCrates.length = 0;
   fragN = perk('frag3') ? 3 : 2; tacN = perk('tac3') ? 3 : 2; gameXP = 0;
   if (perk('uavstart')) sInv.uav = 1; if (perk('airstart')) sInv.air = 1;
   WEAPONS.forEach(W => { const m = perk('reserve') ? 1.3 : 1; W.res = Math.round(RES[W.id][0]*m); W.maxRes = Math.round(RES[W.id][1]*m); W.reserve = W.res; applyCamo(W); }); aimNade = null; throwT = 0; meleeT = 0; flashFx = 0; knifeG.visible = false; arcLine.visible = arcRing.visible = false; reloading = false; shotsInRow = 0; recoilAcc = 0; kick = 0; kickR = 0; firing = false; ads = false; $('tAim').classList.remove('on');
@@ -8494,8 +8586,13 @@ const STREAK_DEFS = {
   care:{ name:'Care Package', need:4, d:'A crate with a random killstreak or supplies' },
   predator:{ name:'Predator Missile', need:5, d:'Steer a missile down onto the enemy' },
   air:{ name:'Precision Airstrike', need:6, d:'A jet bombs a line you mark' },
-  drone:{ name:'Attack Drone', need:7, d:'Hunts raiders for 30 seconds' }
+  drone:{ name:'Attack Drone', need:7, d:'Hunts raiders for 30 seconds' },
+  // animal operators get these three instead of the class's streaks
+  howl:{ name:'Howl', need:3, d:'A war cry that stuns raiders nearby and reveals the rest for 15 seconds', animal:true },
+  berserk:{ name:'Berserker', need:5, d:'Claws out for 15 seconds: faster, tougher, and every kill heals you', animal:true },
+  alpha:{ name:'Alpha Rage', need:8, d:'A longer, stronger Berserker where every kill adds time', animal:true }
 };
+const ANIMAL_STREAKS = ['howl', 'berserk', 'alpha'];
 const PRIMARIES = [0, 1, 2, 3], SECONDARIES = ['pistol', 'launcher'];
 let klass;
 try { klass = JSON.parse(store.get('dy-class') || 'null'); } catch(e){ klass = null; }
@@ -8508,7 +8605,10 @@ function buildStreaks(list){
 }
 function applyClass(){
   CLASS_SET.clear(); klass.perks.forEach(k => CLASS_SET.add(k));
-  STREAKS.length = 0; STREAKS.push(...buildStreaks(klass.streaks));
+  // animal operators use their own three streaks (the operator settings load later than this on startup)
+  let animalOp = false; try { animalOp = opMine().k === 'animal'; } catch(e){}
+  STREAKS.length = 0; STREAKS.push(...buildStreaks(animalOp ? ANIMAL_STREAKS : klass.streaks));
+  if (animalOp) STREAKS[0].name = warCryName();
   tacType = klass.tac === 'smoke' ? 'smoke' : 'flash';
   startW = PRIMARIES.includes(klass.primary) ? klass.primary : 0;
   hud.sk = '';
@@ -8533,7 +8633,7 @@ function renderClass(){
   group('Secondary', [{ id:'pistol', n:'P-11 Sidearm', d:'Pistol' }, { id:'launcher', n:'RPG-X', d:'Rocket launcher' }], o => klass.secondary === o.id, o => { klass.secondary = o.id; });
   group('Tactical', [{ id:'flash', n:'Flashbang', d:'Stuns raiders' }, { id:'smoke', n:'Smoke', d:'Blocks their sight' }], o => klass.tac === o.id, o => { klass.tac = o.id; });
   CLASS_PERKS.forEach((tier, ti) => group(`Perk ${ti + 1}`, tier, o => klass.perks[ti] === o.k, o => { klass.perks[ti] = o.k; }));
-  group('Killstreaks (pick 3)', Object.entries(STREAK_DEFS).map(([k, S]) => ({ k, n:`${S.name} · ${S.need}`, d:S.d })), o => klass.streaks.includes(o.k), o => {
+  group(opMine().k === 'animal' ? 'Killstreaks (pick 3; your animal operator uses Howl, Berserker and Alpha Rage instead)' : 'Killstreaks (pick 3)', Object.entries(STREAK_DEFS).filter(([, S]) => !S.animal).map(([k, S]) => ({ k, n:`${S.name} · ${S.need}`, d:S.d })), o => klass.streaks.includes(o.k), o => {
     if (klass.streaks.includes(o.k)){ if (klass.streaks.length > 1) klass.streaks = klass.streaks.filter(x => x !== o.k); }
     else { klass.streaks.push(o.k); if (klass.streaks.length > 3) klass.streaks.shift(); }
   });
@@ -8699,7 +8799,7 @@ const OP_BACK = [['none','None','Nothing on the back'], ['pack','Assault pack','
 const OP_KIND = [['armor','Armored','Sci-fi battle armor'], ['human','Soldier','Human special forces'], ['alien','Alien','Space suit and glass dome'], ['animal','Animal','Animal in combat gear']];
 const OP_SKIN = [['light','Light',0xf1c9a5], ['tan','Tan',0xc99872], ['brown','Brown',0x8d5a3b], ['dark','Dark',0x5a3a26]];
 const OP_ALIEN = [['green','Green',0x7bd36b], ['grey','Grey',0xa3abb5], ['purple','Purple',0x9b6bd3], ['blue','Blue',0x5aa0e0], ['red','Red',0xd8584f]];
-const OP_ANIMAL = [['wolf','Wolf','Grey wolf',0x7d7f86], ['fox','Fox','Red fox',0xd8762e], ['bear','Bear','Brown bear',0x6b4a32], ['tiger','Tiger','Striped tiger',0xe08a2e], ['ape','Gorilla','Silverback',0x2c2a2a], ['panda','Panda','Panda',0xf2f2f2], ['wolfhd','Wolf HD','Detailed 3D wolf, own helmet',0x7d7f86,'wolf']];
+const OP_ANIMAL = [['wolf','Wolf','Grey wolf',0x7d7f86], ['fox','Fox','Red fox',0xd8762e], ['bear','Bear','Brown bear',0x6b4a32], ['tiger','Tiger','Striped tiger',0xe08a2e], ['ape','Gorilla','Silverback',0x2c2a2a], ['panda','Panda','Panda',0xf2f2f2], ['lion','Lion','Maned lion',0xc6904a], ['wolfhd','Wolf HD','Detailed 3D wolf, own helmet',0x7d7f86,'wolf']];
 // detailed AI-made 3D heads, loaded only the first time someone needs one
 const OP_HD = {}, OP_HD_FIT = { wolf:{ h:.4, y:.01, z:.0, ry:0 } }, OP_HD_IDS = { wolf:'hdWolf' }, OP_HD_LOADING = {};
 function ensureHD(k){
@@ -8738,7 +8838,9 @@ function opHead(op, H, Hp, add, M, at){
   if (op.k === 'armor') return;
   const sph = (r, mat, sx = 1, sy = 1, sz = 1, ws = 18, hs = 14, th = Math.PI) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, ws, hs, 0, Math.PI*2, 0, th), mat); m.scale.set(sx, sy, sz); return m; };
   const box = (w, h, d, mat) => new THREE.Mesh(Bx(w, h, d), mat), cyl = (r1, r2, h, mat, seg = 12) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), mat);
-  const P = [], put = (m, x, y, z, rx, ry, rz) => P.push(at(m, H.x + x, H.y + y, H.z + z, rx, ry, rz));
+  // animal heads are drawn larger, so they read as animals at a distance
+  const K = op.k === 'animal' ? 1.28 : 1;
+  const P = [], put = (m, x, y, z, rx, ry, rz) => { if (K !== 1) m.scale.multiplyScalar(K); P.push(at(m, H.x + x*K, H.y + y*K, H.z + z*K, rx, ry, rz)); };
   const black = M(0x0d0d10, { roughness:.3 }), white = M(0xf4f1ea, { roughness:.5 }), acc = opEntry('c', op.c)[2], suit = opEntry('s', op.s)[2];
   const pat = OP_PATTERNS[op.m] ? M(0xffffff, { map:OP_PATTERNS[op.m].map, roughness:.85 }) : M(new THREE.Color(suit).multiplyScalar(1.15).getHex(), { roughness:.75 });
   let crown = .1, hr = .11;
@@ -8765,8 +8867,8 @@ function opHead(op, H, Hp, add, M, at){
     let furM = M(fur, { roughness:.95 }); hr = .125;
     if (sp[0] === 'tiger'){ const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#e08a2e'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#1a1410';
       for (let i=0;i<9;i++){ const x = i*7 + 2; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 3, 0); g.lineTo(x + 1, 30); g.fill(); } furM = M(0xffffff, { map:new THREE.CanvasTexture(c), roughness:.95 }); }
-    const light = M(sp[0] === 'fox' || sp[0] === 'tiger' ? 0xf6efe4 : sp[0] === 'wolf' ? 0xb9bcc2 : sp[0] === 'ape' ? 0x5b5450 : sp[0] === 'panda' ? 0xf6f6f6 : 0x9a7556, { roughness:.95 });
-    const eyeM = M(sp[0] === 'tiger' || sp[0] === 'wolf' ? 0xffb52e : 0x111111, { roughness:.2, emissive:sp[0] === 'wolf' ? 0x553300 : 0 }), noseM = M(sp[0] === 'tiger' ? 0xd9828a : 0x141414, { roughness:.3 });
+    const light = M(sp[0] === 'fox' || sp[0] === 'tiger' ? 0xf6efe4 : sp[0] === 'lion' ? 0xe8d2a8 : sp[0] === 'wolf' ? 0xb9bcc2 : sp[0] === 'ape' ? 0x5b5450 : sp[0] === 'panda' ? 0xf6f6f6 : 0x9a7556, { roughness:.95 });
+    const eyeM = M(sp[0] === 'tiger' || sp[0] === 'wolf' || sp[0] === 'lion' ? 0xffb52e : 0x111111, { roughness:.2, emissive:sp[0] === 'wolf' ? 0x553300 : 0 }), noseM = M(sp[0] === 'tiger' || sp[0] === 'lion' ? 0xd9828a : 0x141414, { roughness:.3 });
     put(cyl(.05, .056, .12, furM), 0, -.13, -.01);
     if (sp[0] === 'wolf' || sp[0] === 'fox'){
       put(sph(.108, furM, 1, .95, 1.02), 0, 0, 0); const sn = cyl(.032, .055, .13, sp[0] === 'fox' ? light : furM); put(sn, 0, -.035, .115, Math.PI/2);
@@ -8779,7 +8881,7 @@ function opHead(op, H, Hp, add, M, at){
       for (const sx of [-1, 1]){ put(sph(.04, sp[0] === 'panda' ? black : furM, 1, 1, .6), sx*.085, .095, -.02);
         if (sp[0] === 'panda') put(sph(.03, black, 1, 1.35, .5), sx*.045, .025, .092, 0, 0, sx*.4); put(sph(.012, sp[0] === 'panda' ? white : eyeM), sx*.045, .03, .1); }
       
-    } else if (sp[0] === 'tiger'){
+    } else if (sp[0] === 'tiger' || sp[0] === 'lion'){
       put(sph(.118, furM, 1.06, .95, 1), 0, 0, 0); put(sph(.055, light, 1.2, .8, .9), 0, -.045, .095); put(sph(.016, noseM), 0, -.02, .14);
       for (const sx of [-1, 1]){ put(sph(.035, furM, 1, 1, .5), sx*.08, .1, -.01); put(sph(.014, eyeM), sx*.042, .03, .097); put(box(.06, .003, .003, white), sx*.07, -.045, .12, 0, 0, sx*.15); }
       
@@ -8790,15 +8892,19 @@ function opHead(op, H, Hp, add, M, at){
     hdTail(sp);
   }
   function hdTail(sp){
-    const furM = M(sp[3], { roughness:.95 }), white = M(0xf4f1ea, { roughness:.5 }), sph = (r, mat, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat); m.scale.set(sx, sy, sz); return m; };
-    const tl = sp[0] === 'fox' ? .42 : sp[0] === 'wolf' ? .36 : sp[0] === 'tiger' ? .5 : 0;
-    if (tl){
-      const T = [], d = new V3(0, -.55, -.83).normalize(), c = new V3(Hp.x, Hp.y - .05, Hp.z - .14).addScaledVector(d, tl/2);
-      const tail = new THREE.Mesh(new THREE.CylinderGeometry(sp[0] === 'tiger' ? .02 : .03, sp[0] === 'tiger' ? .025 : .06, tl, 10), furM);
-      T.push(at(tail, c.x, c.y, c.z, -2.16));
-      if (sp[0] === 'fox'){ const tip = c.clone().addScaledVector(d, tl/2); T.push(at(sph(.04, white, 1, 1.4, 1), tip.x, tip.y, tip.z, -2.16)); }
-      const grp = new THREE.Group(); for (const p of T) grp.add(p); add('Hips', grp);
+    // a bushy tail that hangs from the hips and sways (see opTailSway); built around its base so it can swing
+    const k = sp[0], furM = M(sp[3], { roughness:.95 }), white = M(k === 'lion' ? 0x4a2c16 : 0xf4f1ea, { roughness:.9 });
+    const len = { fox:.5, wolf:.46, tiger:.62, lion:.6, bear:.08, panda:.08 }[k] || 0;
+    if (!len) return;
+    const tg = new THREE.Group(), bushy = k === 'fox' || k === 'wolf', segs = len < .1 ? 1 : 7;
+    for (let i=0;i<segs;i++){
+      const t = (i + .5)/segs, r = len < .1 ? .06 : bushy ? .035 + Math.sin(t*Math.PI)*.05 + t*.02 : .022;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), k === 'fox' && t > .8 ? white : furM);
+      ball.scale.set(1, 1.6, 1); ball.position.set(0, -t*len, 0); ball.castShadow = true; tg.add(ball);
     }
+    if (k === 'lion' || k === 'tiger'){ const tip = new THREE.Mesh(new THREE.SphereGeometry(.045, 10, 8), k === 'lion' ? white : M(0x1a1410)); tip.scale.set(1, 1.4, 1); tip.position.set(0, -len, 0); tg.add(tip); }
+    tg.userData.tail = true;
+    const grp = new THREE.Group(); grp.add(at(tg, Hp.x, Hp.y - .04, Hp.z - .13, -2.3)); add('Hips', grp);
   }
   // headwear
   if (op.w === 'helmet'){ const y = hr*.45; put(sph(hr + .028, pat, 1, .95, 1.08, 20, 10, Math.PI*.5), 0, y, -.012); put(cyl(hr + .032, hr + .036, .016, pat, 20), 0, y, -.012);
@@ -8835,27 +8941,39 @@ function opCamoOk(k){
 const opArmorOk = k => { const e = opEntry('a', k); return !e[3] || (typeof holder !== 'undefined' && !!(holder.perks && holder.perks[e[3]])); };
 // what you actually wear: locked picks fall back to the defaults
 function opMine(){ const o = Object.assign({}, opCfg); if (!opArmorOk(o.a)) o.a = OP_DEFAULT.a; if (o.m !== 'none' && !opCamoOk(o.m)) o.m = 'none'; return o; }
-function saveOp(){ store.set('dy-op', JSON.stringify(opCfg)); opVer++; tintSleeves(); }
+function saveOp(){ store.set('dy-op', JSON.stringify(opCfg)); opVer++; tintSleeves(); if (typeof applyClass === 'function' && state !== 'play') applyClass(); }
 function tintSleeves(){ try { const c = new THREE.Color(opEntry('s', opMine().s)[2]).lerp(new THREE.Color(0xffffff), .35); mSleeve.color.copy(c); mCuff.color.copy(new THREE.Color(opEntry('s', opMine().s)[2]).multiplyScalar(.8)); } catch(e){} }
 
 // The soldier's texture has tan armor plates, olive cloth and red stripes; a shader recolors each by hue.
 const OP_MATS = new Map();
-function opBodyMat(op, base){
-  const key = [op.a, op.s, op.c, op.m].join('|');
-  if (OP_MATS.has(key)) return OP_MATS.get(key);
+// fine strands, tiled over the arms of animal operators
+const furTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#808080'; g.fillRect(0, 0, 128, 128);
+  for (let i=0;i<2200;i++){ const x = Math.random()*128, y = Math.random()*128, l = 3 + Math.random()*7, v = 60 + Math.random()*170 | 0;
+    g.strokeStyle = `rgba(${v},${v},${v},.55)`; g.lineWidth = .8 + Math.random(); g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - .5)*2, y + l); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
+function opBodyMat(op, base, fresh){
+  let sp = op.k === 'animal' ? (OP_ANIMAL.find(s => s[0] === op.f) || OP_ANIMAL[0]) : null; if (sp && sp[4]) sp = OP_ANIMAL.find(s => s[0] === sp[4]);
+  const key = [op.a, op.s, op.c, op.m, sp ? sp[0] : ''].join('|');
+  if (!fresh && OP_MATS.has(key)) return OP_MATS.get(key);
   const m = base.clone(), C = OP_PATTERNS[op.m] || camoMats[op.m];
   const camoTex = op.m !== 'none' && C ? (C.map || null) : null;
   const u = {
     uArmor:{ value:new THREE.Color(op.m !== 'none' && C && !C.map && C.color ? C.color.getHex() : opEntry('a', op.a)[2]) },
     uSuit:{ value:new THREE.Color(opEntry('s', op.s)[2]) }, uAccent:{ value:new THREE.Color(opEntry('c', op.c)[2]) },
     uCamo:{ value:camoTex || base.map }, uCamoOn:{ value:camoTex ? 1 : 0 },
-    uGlow:{ value:C && C.emissiveMap && op.m !== 'none' ? .7 : 0 }
+    uGlow:{ value:C && C.emissiveMap && op.m !== 'none' ? .7 : 0 },
+    // animals: furred arms and hands instead of armored sleeves
+    uFurOn:{ value:sp ? 1 : 0 }, uFur:{ value:new THREE.Color(sp ? (sp[0] === 'panda' ? 0x1c1c1e : sp[0] === 'ape' ? 0x3a3533 : sp[3]) : 0) }, uFurTex:{ value:furTex }, uStripe:{ value:sp && sp[0] === 'tiger' ? 1 : 0 },
+    uRage:{ value:0 }
   };
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, u);
+    sh.vertexShader = 'varying vec3 vRestP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vRestP = position;');
     sh.fragmentShader = 'uniform vec3 uArmor; uniform vec3 uSuit; uniform vec3 uAccent; uniform sampler2D uCamo; uniform float uCamoOn; uniform float uGlow;\n' +
+      'uniform float uFurOn; uniform vec3 uFur; uniform sampler2D uFurTex; uniform float uStripe; uniform float uRage; varying vec3 vRestP;\n' +
       sh.fragmentShader.replace('#include <map_fragment>', `
-      vec3 opGlow = vec3(0.0);
+      vec3 opGlow = vec3(0.0); float furAmt = 0.0;
       #ifdef USE_MAP
         vec4 texelColor = texture2D( map, vUv );
         vec3 c = texelColor.rgb;
@@ -8870,11 +8988,25 @@ function opBodyMat(op, base){
         c = mix(c, uSuit * clamp(lum / .3, 0., 1.6), wC * (1. - wA));
         c = mix(c, uAccent * clamp(lum / .3, 0., 1.5), wR);
         opGlow = cam * uGlow * wA * uCamoOn + uAccent * wR * uGlow * .6;
+        // the model is in its arms-out rest pose here (centimetres): arms are wide of the body, above the hips
+        float furArms = smoothstep(19.0, 26.0, abs(vRestP.x)) * smoothstep(100.0, 112.0, vRestP.z);
+        float furLegs = smoothstep(60.0, 66.0, vRestP.z) * (1.0 - smoothstep(86.0, 92.0, vRestP.z)) * (1.0 - smoothstep(18.0, 22.0, abs(vRestP.x)));
+        furAmt = uFurOn * max(furArms, furLegs);
+        vec3 strand = texture2D(uFurTex, vUv * 9.0).rgb;
+        vec3 fur = uFur * (0.5 + 0.8 * strand.r);
+        fur *= mix(1.0, 0.18, uStripe * smoothstep(0.6, 0.85, sin(abs(vRestP.x) * 0.42 + strand.r * 2.5) * 0.5 + 0.5));
+        c = mix(c, fur, furAmt);
         diffuseColor *= vec4(c, texelColor.a);
-      #endif`).replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += opGlow;');
+      #endif`).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 1.0, furAmt);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = mix(metalnessFactor, 0.0, furAmt);')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += opGlow;\n' +
+        // soft sheen at the edges of fur, and a red glow in berserker mode
+        '  float furRim = pow(1.0 - abs(dot(normal, normalize(vViewPosition))), 3.0);\n' +
+        '  totalEmissiveRadiance += uFur * furAmt * furRim * 0.45 + vec3(1.0, 0.12, 0.05) * uRage * (0.25 + furRim * 1.2);');
   };
   m.customProgramCacheKey = () => 'dy-op-body';
-  OP_MATS.set(key, m);
+  m.userData.opU = u;
+  if (!fresh) OP_MATS.set(key, m);
   return m;
 }
 function opVisorMat(op){
@@ -8886,7 +9018,7 @@ function opVisorMat(op){
 }
 
 // Gear built from simple shapes, positioned around the rest pose and then glued to a bone each frame
-function opGear(op, H, S, add, Hp){
+function opGear(op, H, S, add, Hp, R){
   if (op.k !== 'armor') H = H.clone().add(new V3(0, .055, .012));
   const acc = opEntry('c', op.c)[2], suit = opEntry('s', op.s)[2];
   const M = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color:c, roughness:.7, metalness:.1 }, o));
@@ -8905,35 +9037,106 @@ function opGear(op, H, S, add, Hp){
   if (op.b === 'pack') g('Spine2', [at(box(.3, .36, .14, M(suit)), S.x, S.y - .06, S.z - .21), at(cyl(.06, .06, .32, M(new THREE.Color(suit).multiplyScalar(.7).getHex()), 10), S.x, S.y + .16, S.z - .22, 0, 0, Math.PI/2), at(box(.2, .02, .02, accM), S.x, S.y - .02, S.z - .285)]);
   if (op.b === 'katana') g('Spine2', [at(cyl(.022, .022, .78, M(0x17181c), 8), S.x, S.y - .02, S.z - .19, 0, 0, .75), at(cyl(.018, .018, .22, accM, 8), S.x + .33, S.y + .3, S.z - .19, 0, 0, .75), at(cyl(.045, .045, .012, gold, 12), S.x + .26, S.y + .23, S.z - .19, 0, 0, .75 + Math.PI/2)]);
   opHead(op, H, Hp, add, M, at);
+  if (op.k === 'animal' && R) opAnimalBody(op, H, R, add, M, at);
   if (op.b === 'tanks') g('Spine2', [at(cyl(.055, .055, .4, M(0xc8ced8, { metalness:.7, roughness:.3 }), 14), S.x - .07, S.y - .05, S.z - .2), at(cyl(.055, .055, .4, M(0xc8ced8, { metalness:.7, roughness:.3 }), 14), S.x + .07, S.y - .05, S.z - .2),
     at(cyl(.03, .03, .05, accM, 10), S.x - .07, S.y + .17, S.z - .2), at(cyl(.03, .03, .05, accM, 10), S.x + .07, S.y + .17, S.z - .2), at(cyl(.012, .012, .2, dark, 6), S.x, S.y + .2, S.z - .13, .9)]);
   if (op.b === 'radio') g('Spine2', [at(box(.2, .3, .1, M(0x3a3d33)), S.x + .04, S.y - .06, S.z - .19), at(cyl(.005, .005, .6, dark, 5), S.x - .04, S.y + .38, S.z - .2, 0, 0, .1), at(box(.06, .03, .012, accM), S.x + .04, S.y + .02, S.z - .245)]);
 }
 
+// Animal operators: a fur ruff (or a lion's mane), claws on both hands and fur cuffs at the wrists
+function opAnimalBody(op, H, R, add, M, at){
+  let sp = OP_ANIMAL.find(s => s[0] === op.f) || OP_ANIMAL[0]; if (sp[4]) sp = OP_ANIMAL.find(s => s[0] === sp[4]);
+  const k = sp[0], fur = M(k === 'lion' ? 0x5a3010 : k === 'panda' ? 0x141414 : sp[3], { roughness:1 });
+  const claw = M(0xe9e1cf, { roughness:.35 }), cone = (r, h) => new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), fur);
+  const Y = new V3(0, 1, 0), q = new THREE.Quaternion(), aim = (m, dir) => { m.quaternion.copy(q.setFromUnitVectors(Y, dir)); return m; };
+  if (k === 'lion'){
+    // a full mane around the face, swept back
+    // two rings of tufts framing the face, the back one larger, plus a fringe on top
+    const P = [], c = H.clone().add(new V3(0, 0, -.03));
+    for (const [ring, r, h, back, rad] of [[0, .085, .17, .2, .15], [1, .1, .22, .7, .13]]) for (let i=0;i<20;i++){
+      const a = (i + ring*.5)/20*Math.PI*2, d = new V3(Math.cos(a)*1.05, Math.sin(a)*1.15, -back).normalize(), m = aim(cone(r, h), d);
+      m.position.copy(c).add(new V3(Math.cos(a)*rad*1.05, Math.sin(a)*rad*1.15, -back*.06)); m.castShadow = true; P.push(m); }
+    for (let i=0;i<12;i++){ const a = i/12*Math.PI*2 + .2, d = new V3(Math.cos(a)*.9, -.6 + Math.sin(a)*.3, Math.sin(a)*.8).normalize(), m = aim(cone(.07, .22), d);
+      m.position.copy(R.neck).addScaledVector(d, .1); m.castShadow = true; P.push(m); }
+    const g = new THREE.Group(); P.forEach(m => g.add(m)); add('Head', g);
+  } else if (k !== 'ape'){
+    // a ruff of fur around the neck, over the collar
+    const P = [], n = k === 'bear' || k === 'panda' ? 12 : 16, len = k === 'fox' ? .12 : .14;
+    for (let i=0;i<n;i++){ const a = i/n*Math.PI*2, d = new V3(Math.cos(a), -.35, Math.sin(a)*.85).normalize(), m = aim(cone(.045, len), d);
+      m.position.copy(R.neck).add(new V3(0, -.03, 0)).addScaledVector(d, .1); m.castShadow = true; P.push(m); }
+    const g = new THREE.Group(); P.forEach(m => g.add(m)); add('Neck', g);
+  }
+  for (const [hand, fore, bone] of [[R.lh, R.lf, 'LeftHand'], [R.rh, R.rf, 'RightHand']]){
+    const dir = hand.clone().sub(fore).normalize(), side = new V3().crossVectors(dir, Y).normalize(), P = [];
+    for (const o of [-.028, 0, .028]){ const m = aim(new THREE.Mesh(new THREE.ConeGeometry(.009, k === 'ape' ? .035 : .065, 5), claw), dir);
+      m.position.copy(hand).addScaledVector(dir, .1).addScaledVector(side, o).add(new V3(0, -.012, 0)); m.castShadow = true; m.userData.claw = true; P.push(m); }
+    const cuff = aim(new THREE.Mesh(new THREE.CylinderGeometry(.06, .052, .1, 10), fur), dir); cuff.position.copy(hand).addScaledVector(dir, -.07); cuff.castShadow = true; P.push(cuff);
+    const g = new THREE.Group(); P.forEach(m => g.add(m)); add(bone, g);
+  }
+}
+// Joins a glued group's simple parts into one mesh per material, so a detailed operator stays cheap to draw.
+function mergeParts(grp){
+  const byMat = new Map(), keep = [];
+  for (const c of grp.children){
+    if (!c.isMesh || c.children.length || c.userData.tail || c.userData.claw){ keep.push(c); continue; }
+    const m = c.material, key = [m.color && m.color.getHex(), m.roughness, m.metalness, m.emissive && m.emissive.getHex(), m.emissiveIntensity, m.map && m.map.uuid, m.transparent].join('|');
+    if (!byMat.has(key)) byMat.set(key, { m, list:[] }); byMat.get(key).list.push(c);
+  }
+  const out = [...keep];
+  for (const { m, list } of byMat.values()){
+    if (list.length < 2){ out.push(...list); continue; }
+    const pos = [], nor = [], uv = [];
+    for (const c of list){
+      c.updateMatrix(); const g = (c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone()).applyMatrix4(c.matrix);
+      pos.push(g.attributes.position.array); nor.push(g.attributes.normal.array); uv.push(g.attributes.uv ? g.attributes.uv.array : new Float32Array(g.attributes.position.count*2));
+    }
+    const cat = arrs => { const n = arrs.reduce((a, b) => a + b.length, 0), o = new Float32Array(n); let i = 0; for (const a of arrs){ o.set(a, i); i += a.length; } return o; };
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(cat(pos), 3)); geo.setAttribute('normal', new THREE.BufferAttribute(cat(nor), 3)); geo.setAttribute('uv', new THREE.BufferAttribute(cat(uv), 2));
+    const mesh = new THREE.Mesh(geo, m); mesh.castShadow = true; out.push(mesh);
+  }
+  grp.children.length = 0; for (const c of out){ c.parent = grp; grp.children.push(c); }
+}
+// tails swing side to side, more when running
+function opTailSway(o, t){
+  if (!o.tails.length) return;
+  const run = Math.min(1, (o.spd || 0)/6), a = Math.sin(t*(2.2 + run*5))*(.22 + run*.25), lift = run*.5;
+  for (const tg of o.tails){ tg.quaternion.multiply(_tq.setFromEuler(_te.set(lift, 0, a))); }
+}
+const _tq = new THREE.Quaternion(), _te = new THREE.Euler();
 const OP_BONES = ['Hips','Spine','Spine2','Neck','Head','HeadTop_End','LeftArm','LeftForeArm','LeftHand','RightArm','RightForeArm','RightHand','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
-function buildOperator(op, unique){
+function buildOperator(op, unique, mine){
   if (!SOLDIER) return null;
   op = sanitizeOp(op);
   const root = new THREE.Group(), model = THREE.SkeletonUtils.clone(SOLDIER.scene);
   model.rotation.y = Math.PI; root.add(model);
+  // species build: bears and gorillas are bigger with heavier arms, foxes are lighter
+  const spc = op.k === 'animal' ? ((OP_ANIMAL.find(s => s[0] === op.f) || [])[4] || op.f) : '';
+  const BUILD = { bear:[1.1, 1.12], ape:[1.07, 1.18], panda:[1.06, 1.1], lion:[1.04, 1.06], tiger:[1.03, 1.05], fox:[.96, 1], wolf:[1, 1.04] }[spc] || [1, 1];
+  model.scale.multiplyScalar(BUILD[0]);
   let base = null;
   SOLDIER.scene.traverse(o => { if (o.isMesh && !/visor/i.test(o.name)) base = o.material; });
   const mats = [], own = m => { if (!unique) return m; const c = m.clone(); c.onBeforeCompile = m.onBeforeCompile; c.customProgramCacheKey = m.customProgramCacheKey; mats.push(c); return c; };
-  model.traverse(o => { if (o.isMesh){ o.material = own(/visor/i.test(o.name) ? opVisorMat(op) : opBodyMat(op, base)); o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (op.k !== 'armor' && /visor/i.test(o.name)) o.visible = false; } });
+  let bodyU = null;
+  model.traverse(o => { if (o.isMesh){ o.material = own(/visor/i.test(o.name) ? opVisorMat(op) : opBodyMat(op, base, mine)); if (mine && !/visor/i.test(o.name)) bodyU = o.material.userData.opU; o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; if (op.k !== 'armor' && /visor/i.test(o.name)) o.visible = false; } });
   const B = {}; for (const k of OP_BONES) B[k] = findBone(model, k);
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), _m = new THREE.Matrix4();
   const local = b => { _m.multiplyMatrices(inv, b.matrixWorld); const p = new V3(), q = new THREE.Quaternion(), s = new V3(); _m.decompose(p, q, s); return { p, q }; };
   const head = local(B.Head).p.clone().lerp(local(B.HeadTop_End || B.Head).p, .45), sp = local(B.Spine2).p, hp = local(B.Hips).p;
-  const glued = [];
-  opGear(op, head, sp, (bone, grp) => { const r = local(B[bone]); root.add(grp); glued.push({ b:B[bone], grp, p0:r.p.clone(), q0i:r.q.clone().invert(), kids:grp.children.map(c => ({ c, p:c.position.clone().sub(r.p), q:c.quaternion.clone() })) }); }, hp);
+  const R = { neck:local(B.Neck).p, lh:local(B.LeftHand).p, lf:local(B.LeftForeArm).p, rh:local(B.RightHand).p, rf:local(B.RightForeArm).p };
+  const glued = [], tails = [];
+  opGear(op, head, sp, (bone, grp) => { mergeParts(grp); const r = local(B[bone]); root.add(grp); grp.traverse(c => { if (c.userData.tail) tails.push(c); });
+    glued.push({ b:B[bone], grp, p0:r.p.clone(), q0i:r.q.clone().invert(), kids:grp.children.map(c => ({ c, p:c.position.clone().sub(r.p), q:c.quaternion.clone() })) }); }, hp, R);
   const mixer = new THREE.AnimationMixer(model);
   const act = n => { const a = mixer.clipAction(SOLDIER.clips[n]); a.play(); a.setEffectiveWeight(n === 'Idle' ? 1 : 0); return a; };
-  const o = { root, model, B, mixer, op, mats, acts:{ idle:act('Idle'), walk:act('Walk'), run:act('Run') }, w:{ idle:1, walk:0, run:0 }, cf:0, aimK:0, recoil:0, spd:0, gun:null, gunId:'' };
+  const armBones = BUILD[1] !== 1 ? [B.LeftArm, B.RightArm].filter(Boolean) : [];
+  for (const b of armBones) b.scale.setScalar(BUILD[1]);
+  const o = { root, model, B, mixer, op, mats, tails, bodyU, acts:{ idle:act('Idle'), walk:act('Walk'), run:act('Run') }, w:{ idle:1, walk:0, run:0 }, cf:0, aimK:0, recoil:0, spd:0, gun:null, gunId:'' };
   const _q = new THREE.Quaternion(), _rq = new THREE.Quaternion();
   const hideHead = op.k !== 'armor';
   o.sync = () => {
     if (hideHead){ B.Head.scale.setScalar(.02); }
+    for (const b of armBones) b.scale.setScalar(BUILD[1]);
     root.updateMatrixWorld(true);
     inv.copy(root.matrixWorld).invert();
     for (const G of glued){
@@ -8941,6 +9144,7 @@ function buildOperator(op, unique){
       _rq.copy(_q).multiply(G.q0i);
       for (const k of G.kids){ k.c.position.copy(k.p).applyQuaternion(_rq).add(p); k.c.quaternion.copy(_rq).multiply(k.q); }
     }
+    opTailSway(o, performance.now()/1000);
   };
   o.sync();
   return o;
@@ -8985,6 +9189,7 @@ function boneTurn(bone, axis, ang){
 }
 const _ax = new V3(), _gp = new V3();
 function poseOp(o, dt, s){
+  o.spd = s.spd;
   const run = Math.max(0, Math.min(1, (s.spd - 5)/1.8)), walk = Math.max(0, Math.min(1, s.spd/1.2))*(1 - run);
   const tgt = { idle:1 - walk - run, walk, run };
   for (const k in o.acts){ o.w[k] += (tgt[k] - o.w[k])*Math.min(1, dt*10); o.acts[k].setEffectiveWeight(o.w[k]); }
@@ -9027,7 +9232,7 @@ function ensureOpBody(){
   if (!SOLDIER) return null;
   if (opBody && opBodyVer === opVer) return opBody;
   if (opBody) scene.remove(opBody.root);
-  opBody = buildOperator(opMine()); opBodyVer = opVer;
+  opBody = buildOperator(opMine(), false, true); opBodyVer = opVer;
   opBody.root.visible = false; scene.add(opBody.root);
   return opBody;
 }
@@ -9037,7 +9242,8 @@ function opBodyUpdate(dt){
   o.root.visible = tpBlend > .3 && !predator;
   if (!o.root.visible) return;
   const W = cur();
-  opSetGun(o, hubMode ? '' : W.id);
+  opSetGun(o, hubMode || rage.t > 0 ? '' : W.id);
+  if (o.bodyU) o.bodyU.uRage.value = rageFx;
   if (o.gun && o.gunCamo !== W.camo + '|' + W.id){ o.gunCamo = W.camo + '|' + W.id; opGunCamo(o, W); }
   o.root.position.set(P.pos.x, P.pos.y, P.pos.z);
   o.root.rotation.y = P.yaw + Math.PI;
@@ -9973,12 +10179,12 @@ const GRADES = {
 };
 let gradeNow = GRADES.yard;
 const GradeShader = {
-  uniforms: { tDiffuse:{ value:null }, time:{ value:0 }, vign:{ value:1 }, ca:{ value:.0018 }, res:{ value:new THREE.Vector2(innerWidth, innerHeight) }, hurt:{ value:0 },
+  uniforms: { tDiffuse:{ value:null }, time:{ value:0 }, vign:{ value:1 }, ca:{ value:.0018 }, res:{ value:new THREE.Vector2(innerWidth, innerHeight) }, hurt:{ value:0 }, rage:{ value:0 },
     exposure:{ value:1 }, sat:{ value:1 }, contrast:{ value:1 }, lift:{ value:new THREE.Vector3() }, gain:{ value:new THREE.Vector3() } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader: [
     'uniform sampler2D tDiffuse; uniform float time; uniform float vign; uniform float ca; uniform vec2 res; uniform float hurt;',
-    'uniform float exposure; uniform float sat; uniform float contrast; uniform vec3 lift; uniform vec3 gain; varying vec2 vUv;',
+    'uniform float exposure; uniform float sat; uniform float contrast; uniform vec3 lift; uniform vec3 gain; uniform float rage; varying vec2 vUv;',
     'float rnd(vec2 co){ return fract(sin(dot(co, vec2(12.9898,78.233))) * 43758.5453); }',
     'void main(){',
     '  vec2 d = vUv - 0.5; float r2 = dot(d,d);',
@@ -9992,6 +10198,8 @@ const GradeShader = {
     '  col = mix(vec3(l), col, sat * (1.0 - hurt*0.6));',
     '  col = (col - 0.5) * contrast + 0.5;',
     '  col += lift * (1.0 - l) + gain * l;',
+    '  col = mix(col, col * vec3(1.3, 0.78, 0.72), rage * 0.55);',   // berserker: the world runs red at the edges
+    '  col = mix(col, vec3(0.45, 0.02, 0.0), rage * smoothstep(0.08, 0.5, r2) * 0.6);',
     '  col *= 1.0 - vign * r2 * 1.4;',
     '  col += (rnd(vUv * res + fract(time)) - 0.5) * 0.03;',
     '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);',
@@ -10121,6 +10329,7 @@ function loop(){
     gunPass.enabled = (state === 'play' || state === 'paused') && tpBlend < .3;
     gradePass.uniforms.time.value = performance.now()/1000;
     gradePass.uniforms.vign.value = .9 + adsF*.5;
+    gradePass.uniforms.rage.value = rageFx;
     gradePass.uniforms.hurt.value = state === 'play' ? Math.max(0, 1 - P.hp/60) * .6 + vigPulse*.4 : 0;
     composer.render(dt);
   } else {
