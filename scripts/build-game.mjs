@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { transformSync } from 'esbuild';
 
 const SRC = 'game/dust-yard.html', OUT = 'public/index.html', ASSET_DIR = 'public/assets';
-const EXTERNAL = ['soldierGlb', 'soldierDiff', 'soldierNorm', 'hdWolf'];   // large embedded files served separately
+const EXTERNAL = ['soldierGlb', 'soldierDiff', 'soldierNorm', 'hdWolf', 'hdApe', 'hdWolfToon', 'hdFox', 'hdBear', 'hdTiger', 'hdPanda', 'hdLion', 'hdHumanLight', 'hdHumanTan', 'hdHumanBrown', 'hdHumanDark'];   // large embedded files served separately
 let html = readFileSync(SRC, 'utf8');
 const before = html.length;
 
