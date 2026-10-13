@@ -3278,6 +3278,18 @@ const sfx = {
   reloadIn: () => { tone(430, 0.04, 0.1); tone(620, 0.05, 0.1, 'square', 0.09); },
   hurt: () => blast(0.28, 500, 0.18, true),
   slide: () => blast(0.22, 900, 0.55, false),
+  // an elephant's trumpet: a brassy rising blare with a wobble
+  trumpet: (p = 1) => {
+    if (!ac) return; const t = ac.currentTime, o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), bp = ac.createBiquadFilter(), lfo = ac.createOscillator(), lg = ac.createGain();
+    o.type = 'sawtooth'; o2.type = 'square'; const f = 420*p;
+    o.frequency.setValueAtTime(f*.7, t); o.frequency.exponentialRampToValueAtTime(f*1.35, t + .25); o.frequency.exponentialRampToValueAtTime(f, t + .9);
+    o2.frequency.setValueAtTime(f*.705, t); o2.frequency.exponentialRampToValueAtTime(f*1.36, t + .25); o2.frequency.exponentialRampToValueAtTime(f*1.01, t + .9);
+    lfo.frequency.value = 22; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.frequency); lg.connect(o2.frequency);
+    bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = .8;
+    g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.16, t + .06); g.gain.setValueAtTime(.16, t + .7); g.gain.exponentialRampToValueAtTime(.001, t + 1);
+    o.connect(bp); o2.connect(bp); bp.connect(g); g.connect(master);
+    for (const x of [o, o2, lfo]){ x.start(t); x.stop(t + 1.05); }
+  },
   // a growl that drops in pitch, under a rush of breath; deeper for big animals
   roar: k => {
     if (!ac) return; const t = ac.currentTime, deep = k === 'bear' || k === 'ape' || k === 'lion', hi = k === 'fox' || k === 'wolf';
@@ -4794,44 +4806,73 @@ function shockwave(at, R, dmg, stun){
 /* Stampede (5 kills): mark a line like an airstrike; a herd of glowing spirit beasts charges along it,
    through walls, trampling every raider in the way. */
 const stampJobs = [];
-const stampMat = new THREE.MeshStandardMaterial({ color:0xc98a3a, emissive:0xff9a2a, emissiveIntensity:.35, roughness:.7, transparent:true, opacity:.9 });
+// elephants: a cartoon herd built from simple shapes, with stomping legs, a swinging trunk and flapping ears
+const eleSkin = new THREE.MeshStandardMaterial({ color:0x8d8781, roughness:.95 }), eleDark = new THREE.MeshStandardMaterial({ color:0x6f6a65, roughness:.95 });
+const eleTusk = new THREE.MeshStandardMaterial({ color:0xf3ecdc, roughness:.4 }), eleEye = new THREE.MeshStandardMaterial({ color:0x111111, roughness:.3 }), eleEar = new THREE.MeshStandardMaterial({ color:0x9a8f8a, roughness:.95, side:THREE.DoubleSide });
 function makeBeast(){
-  const g = new THREE.Group(), box = (w, h, d, x, y, z) => { const m = new THREE.Mesh(Bx(w, h, d), stampMat); m.position.set(x, y, z); g.add(m); return m; };
-  box(1.1, 1.0, 2.2, 0, 1.35, 0); box(1.25, 1.2, .9, 0, 1.55, .7);                 // body and hump
-  const head = box(.6, .6, .8, 0, 1.25, 1.45);
-  for (const sx of [-1, 1]){ const h = new THREE.Mesh(new THREE.ConeGeometry(.08, .55, 6), stampMat); h.position.set(sx*.4, 1.6, 1.45); h.rotation.z = -sx*1.1; g.add(h); }
+  const g = new THREE.Group(), sph = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = g) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); return m; };
+  sph(1, eleSkin, 0, 2.05, 0, 1.15, 1.05, 1.55);                       // body
+  sph(.8, eleSkin, 0, 2.15, -.75, 1.05, 1, 1);                         // rump
+  const head = new THREE.Group(); head.position.set(0, 2.45, 1.45); g.add(head);
+  sph(.78, eleSkin, 0, 0, 0, 1, 1.05, 1, head);
+  for (const sx of [-1, 1]) sph(.09, eleEye, sx*.42, .18, .58, 1, 1, 1, head);
+  // big ears, pivoting at the side of the head
+  const ears = [];
+  for (const sx of [-1, 1]){ const e = new THREE.Group(); e.position.set(sx*.62, -.05, -.15); head.add(e); sph(.72, eleEar, sx*.06, -.12, -.38, .1, 1.05, .85, e); ears.push(e); }
+  // tusks
+  for (const sx of [-1, 1]){ const t = new THREE.Mesh(new THREE.ConeGeometry(.11, 1, 8), eleTusk); t.position.set(sx*.32, -.5, .72); t.rotation.x = 2.1; t.castShadow = true; head.add(t); }
+  // trunk: a chain of segments that curls and swings
+  const trunk = []; let parent = head, y = -.15, r = .2;
+  for (let i=0;i<5;i++){
+    const seg = new THREE.Group(); seg.position.set(0, i ? -.25 : y, i ? 0 : .7); parent.add(seg);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r*.9, r, .28, 10), eleSkin); m.position.y = -.12; m.castShadow = true; seg.add(m);
+    trunk.push(seg); parent = seg; r *= .86;
+  }
   const legs = [];
-  for (const [x, z] of [[-.38, .75], [.38, .75], [-.38, -.75], [.38, -.75]]){ const l = new THREE.Group(); l.position.set(x, 1, z); const m = new THREE.Mesh(Bx(.24, 1, .24), stampMat); m.position.y = -.5; l.add(m); g.add(l); legs.push(l); }
-  g.userData = { legs, head };
+  for (const [x, z] of [[-.55, .85], [.55, .85], [-.55, -.8], [.55, -.8]]){
+    const l = new THREE.Group(); l.position.set(x, 1.55, z); g.add(l);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(.34, .3, 1.55, 12), eleSkin); m.position.y = -.78; m.castShadow = true; l.add(m);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(.36, .38, .12, 12), eleDark); foot.position.y = -1.52; l.add(foot);
+    legs.push(l);
+  }
+  const tail = new THREE.Group(); tail.position.set(0, 2.4, -1.5); g.add(tail);
+  const tm = new THREE.Mesh(new THREE.CylinderGeometry(.04, .03, .8, 6), eleDark); tm.position.y = -.4; tail.add(tm); tail.rotation.x = -.3;
+  g.scale.setScalar(.9 + Math.random()*.25);
+  g.userData = { legs, head, ears, trunk, tail };
   return g;
 }
 function callStampede(p){
   airAim = false; airMark.visible = false; sInv.stampede--;
   const dir = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)).normalize(), side = new V3(-dir.z, 0, dir.x);
   const beasts = [];
-  for (let i=0;i<9;i++){
-    const g = makeBeast(), off = (i % 3 - 1)*2.6 + (Math.random() - .5), back = Math.floor(i/3)*3.2 + Math.random()*1.5;
+  for (let i=0;i<8;i++){
+    const g = makeBeast(), off = (i % 3 - 1)*3.6 + (Math.random() - .5), back = Math.floor(i/3)*4.6 + Math.random()*2;
     g.position.copy(p).addScaledVector(dir, -48 - back).addScaledVector(side, off); g.position.y = 0;
     g.lookAt(g.position.clone().add(dir)); scene.add(g); beasts.push({ g, hit:new Set(), ph:Math.random()*6 });
   }
   stampJobs.push({ beasts, dir, p:p.clone(), run:0, puffT:0 });
-  sfx.horn(); banner('Stampede'); feed('Stampede incoming', true);
+  sfx.trumpet(); setTimeout(() => sfx.trumpet(1.15), 450); banner('Stampede'); feed('Elephant stampede incoming', true);
 }
 function updateStampedes(dt){
   for (let i=stampJobs.length-1;i>=0;i--){
     const S = stampJobs[i]; S.run += 22*dt; S.puffT -= dt;
     for (const b of S.beasts){
       b.g.position.addScaledVector(S.dir, 22*dt); b.ph += dt*14;
-      b.g.userData.legs.forEach((l, j) => { l.rotation.x = Math.sin(b.ph + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI/2 : 0))*.7; });
-      b.g.position.y = Math.abs(Math.sin(b.ph))*.12;
+      const U = b.g.userData;
+      U.legs.forEach((l, j) => { l.rotation.x = Math.sin(b.ph*.75 + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI/2 : 0))*.55; });
+      U.trunk.forEach((t, j) => { t.rotation.x = -(j ? .22 : .35) - Math.sin(b.ph*.5 - j*.6)*.2; t.rotation.z = Math.sin(b.ph*.35 - j*.5)*.12; });
+      U.ears.forEach((e, j) => { e.rotation.y = (j ? 1 : -1)*(.2 + Math.sin(b.ph*.6)*.35); });
+      U.head.rotation.x = Math.sin(b.ph*.75)*.06; U.tail.rotation.z = Math.sin(b.ph)*.4;
+      b.g.position.y = Math.abs(Math.sin(b.ph*.75))*.15;
       for (const e of enemies){
         if (!e.alive || b.hit.has(e)) continue;
-        if (Math.hypot(e.pos.x - b.g.position.x, e.pos.z - b.g.position.z) < 1.9){ b.hit.add(e); if (!e.remote) e.flinch = .4; damageEnemy(e, 400, false, S.dir, 'stampede'); }
+        if (Math.hypot(e.pos.x - b.g.position.x, e.pos.z - b.g.position.z) < 2.4){ b.hit.add(e); if (!e.remote) e.flinch = .4; damageEnemy(e, 400, false, S.dir, 'stampede'); }
       }
     }
-    if (S.puffT <= 0){ S.puffT = .12; const b = S.beasts[(Math.random()*S.beasts.length)|0]; spawnPuff(b.g.position.clone().setY(.4), 0xc9ad83, .5, .9, .8); }
+    if (S.puffT <= 0){ S.puffT = .08; const b = S.beasts[(Math.random()*S.beasts.length)|0]; spawnPuff(b.g.position.clone().setY(.4), 0xc9ad83, .9, 1.1, 1); }
+    S.callT = (S.callT || 1.5) - dt; if (S.callT <= 0){ S.callT = 1.6 + Math.random()*1.5; sfx.trumpet(.9 + Math.random()*.3); }
     const near = Math.min(...S.beasts.map(b => b.g.position.distanceTo(P.pos)));
-    if (near < 18){ shake = Math.max(shake, .025*(1 - near/18)); }
+    if (near < 24){ shake = Math.max(shake, .04*(1 - near/24)); }
     if (S.run > 105){ for (const b of S.beasts) scene.remove(b.g); stampJobs.splice(i, 1); }
   }
 }
@@ -4891,7 +4932,7 @@ function updateRage(dt){
 }
 function useBestStreak(){ if (airAim){ useStreak(aimKind); return; } for (const S of STREAKS.slice().reverse()) if (sInv[S.k] && !(S.k === 'drone' && drone)){ useStreak(S.k); return; } }
 const airMark = new THREE.Group(); airMark.visible = false; scene.add(airMark);
-const stampPath = new THREE.Mesh(new THREE.PlaneGeometry(7, 70), new THREE.MeshBasicMaterial({ color:0xffb340, transparent:true, opacity:.22, depthWrite:false, side:THREE.DoubleSide }));
+const stampPath = new THREE.Mesh(new THREE.PlaneGeometry(10, 70), new THREE.MeshBasicMaterial({ color:0xffb340, transparent:true, opacity:.22, depthWrite:false, side:THREE.DoubleSide }));
 stampPath.rotation.x = -Math.PI/2; stampPath.position.y = .07; stampPath.visible = false; airMark.add(stampPath);
 {
   const r = new THREE.Mesh(new THREE.RingGeometry(2.6,3.1,40), new THREE.MeshBasicMaterial({ color:0xff3b2f, transparent:true, opacity:.85, side:THREE.DoubleSide, depthWrite:false }));
@@ -8681,7 +8722,7 @@ const STREAK_DEFS = {
   drone:{ name:'Attack Drone', need:7, d:'Hunts raiders for 30 seconds' },
   // animal operators get these three instead of the class's streaks
   pounce:{ name:'Pounce', need:3, d:'Leap onto the raider in your sights, up to 25 m away, and knock down everyone near the landing', animal:true },
-  stampede:{ name:'Stampede', need:5, d:'Mark a line: a herd of spirit beasts charges along it, trampling every raider in the way', animal:true },
+  stampede:{ name:'Stampede', need:5, d:'Mark a line: a herd of elephants charges along it, trampling every raider in the way', animal:true },
   apex:{ name:'Apex Form', need:8, d:'Grow into a giant for 20 seconds: claws, ground slams, 75% less damage', animal:true }
 };
 const ANIMAL_STREAKS = ['pounce', 'stampede', 'apex'];
