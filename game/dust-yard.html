@@ -4718,7 +4718,8 @@ function enemyThrow(e){
 const needOf = S => S.need - (perk('hardline') ? 1 : 0);
 const STREAKS = [ { k:'uav', name:'UAV', need:3, key:'7', pad:'D-pad up' }, { k:'air', name:'Airstrike', need:5, key:'8', pad:'D-pad right' }, { k:'drone', name:'Attack drone', need:7, key:'9', pad:'D-pad down' } ];
 let streak = 0, uavT = 0, airAim = false, drone = null;
-const sInv = { uav:0, air:0, drone:0, care:0, predator:0, howl:0, berserk:0, alpha:0 }, airJobs = [];
+const sInv = { uav:0, air:0, drone:0, care:0, predator:0, pounce:0, stampede:0, apex:0 }, airJobs = [];
+let aimKind = 'air';   // what the aiming marker is for: an airstrike or a stampede
 function addStreakKill(){
   streak++;
   const S = STREAKS.find(s => needOf(s) === streak);
@@ -4728,58 +4729,137 @@ function addStreakKill(){
 function useStreak(k){
   if (hubMode) return;
   if (state !== 'play') return;
-  if (k === 'air' && airAim){ airAim = false; airMark.visible = false; return; }
+  if ((k === 'air' || k === 'stampede') && airAim && aimKind === k){ airAim = false; airMark.visible = false; return; }
   if (!sInv[k]) return;
   if (predator) return;
   if (k === 'uav'){ sInv.uav--; uavT = 30; sfx.radio(); feed('UAV online'); }
   else if (k === 'care'){ sInv.care--; dropCarePackage(); }
   else if (k === 'predator'){ sInv.predator--; launchPredator(); }
-  else if (k === 'howl'){ sInv.howl--; useHowl(); }
-  else if (k === 'berserk' || k === 'alpha'){ if (rage.t > 0) return; sInv[k]--; startRage(k === 'alpha'); }
-  else if (k === 'air'){ airAim = true; ads = false; toast(isTouch ? 'Aim at a spot and tap Fire to call the airstrike' : 'Aim at a spot and fire to call the airstrike. Aim down sights to cancel.', 3000); }
+  else if (k === 'pounce'){ if (pounce) return; sInv.pounce--; usePounce(); }
+  else if (k === 'stampede'){ aimKind = 'stampede'; airAim = true; ads = false; toast(isTouch ? 'Aim where the herd should run and tap Fire' : 'Aim where the herd should run and fire. Aim down sights to cancel.', 3000); }
+  else if (k === 'apex'){ if (rage.t > 0) return; sInv.apex--; startRage(); }
+  else if (k === 'air'){ aimKind = 'air'; airAim = true; ads = false; toast(isTouch ? 'Aim at a spot and tap Fire to call the airstrike' : 'Aim at a spot and fire to call the airstrike. Aim down sights to cancel.', 3000); }
   else if (!drone){ sInv.drone--; spawnDrone(); sfx.radio(); feed('Attack drone deployed'); }
 }
 /* ---------- Animal operators: war cry, Berserker and Alpha Rage ---------- */
-const rage = { t:0, max:0, alpha:false, cd:0, swing:0, side:1 };
+const rage = { t:0, max:0, cd:0, swing:0, side:1 };
 let rageFx = 0;   // 0..1, drives the red grade, the body glow and the claws
 function animalSpecies(){ const o = opMine(); let sp = OP_ANIMAL.find(x => x[0] === o.f) || OP_ANIMAL[0]; if (sp[4]) sp = OP_ANIMAL.find(x => x[0] === sp[4]); return sp; }
-function warCryName(){ const k = animalSpecies()[0]; return k === 'wolf' || k === 'fox' ? 'Howl' : k === 'ape' ? 'Chest Pound' : 'Roar'; }
-function useHowl(){
-  sfx.roar(animalSpecies()[0]); shake = Math.max(shake, .05); rumble(.8, .6, 400);
-  let n = 0;
+const ARENA_EDGE = 44;
+/* Pounce (3 kills): one huge leap onto the raider under your crosshair, up to 25 m away. You can't be hurt in
+   the air, the target takes a heavy hit, and everyone near the landing is knocked down. */
+let pounce = null;
+function usePounce(){
+  const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), eye = new V3(P.pos.x, P.pos.y + 1.5, P.pos.z);
+  let best = null, bestDot = .82;
   for (const e of enemies){
-    if (!e.alive || e.remote) continue;
-    const d = Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z);
-    if (d < 16){ e.stunT = Math.max(e.stunT || 0, 3*(1 - d/20)); e.sees = false; e.crouching = false; e.flinch = .3; n++; }
+    if (!e.alive || e.type === 'boss' && e.pos.distanceTo(P.pos) < 3) continue;
+    const d = new V3(e.pos.x - P.pos.x, 0, e.pos.z - P.pos.z), dist = d.length();
+    if (dist > 25 || dist < 2) continue;
+    const dot = d.normalize().dot(f);
+    if (dot > bestDot && lineOfSight(eye, new V3(e.pos.x, (e.y || 0) + 1.2, e.pos.z), true)){ best = e; bestDot = dot; }
   }
-  uavT = Math.max(uavT, 15);
-  banner(warCryName()); feed(n ? `${warCryName()}: ${n} raider${n > 1 ? 's' : ''} stunned, the rest revealed` : `${warCryName()}: raiders revealed`, true);
+  let to;
+  if (best){ const d = new V3(best.pos.x - P.pos.x, 0, best.pos.z - P.pos.z), l = d.length(); to = P.pos.clone().addScaledVector(d.normalize(), l - 1.2); to.y = best.y || 0; }
+  else { to = P.pos.clone().addScaledVector(f, 14); to.x = Math.max(-ARENA_EDGE, Math.min(ARENA_EDGE, to.x)); to.z = Math.max(-ARENA_EDGE, Math.min(ARENA_EDGE, to.z)); to.y = groundAt(to.x, to.z, 9); }
+  const dist = P.pos.distanceTo(to);
+  pounce = { from:P.pos.clone(), to, t:0, dur:.4 + dist/38, h:1.6 + dist*.13, target:best };
+  reloading = false; ads = false; P.slideT = 0; P.crouch = false;
+  sfx.roar(animalSpecies()[0]); rumble(.6, .5, 200);
+  banner('Pounce');
 }
-function startRage(alpha){
-  rage.t = rage.max = alpha ? 22 : 15; rage.alpha = alpha; rage.cd = 0;
-  reloading = false; ads = false; inspectT = 0; buildClaws();
-  sfx.roar(animalSpecies()[0]); shake = Math.max(shake, .06); rumble(1, .8, 500);
-  banner(alpha ? 'Alpha Rage' : 'Berserker'); toast(isTouch ? 'Claws out! Tap Fire to strike. Kills heal you.' : 'Claws out! Fire to strike. Kills heal you.', 3000);
+function updatePounce(dt){
+  const J = pounce; J.t += dt/J.dur;
+  const k = Math.min(1, J.t), e = k < .5 ? 2*k*k : 1 - Math.pow(-2*k + 2, 2)/2;
+  P.pos.lerpVectors(J.from, J.to, e); P.pos.y = J.from.y + (J.to.y - J.from.y)*k + 4*J.h*k*(1 - k);
+  P.vel.set(0, 0, 0); P.onGround = false;
+  if (k < 1) return;
+  pounce = null; P.onGround = true; collide(P.pos, P.r, P.pos.y);
+  const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw));
+  if (J.target && J.target.alive) damageEnemy(J.target, 170, false, f, 'claw');
+  shockwave(P.pos, 4.5, 70, 1.8);
 }
-function rageKill(){
-  if (rage.t <= 0) return;
-  P.hp = Math.min(100, P.hp + (rage.alpha ? 35 : 25));
-  if (rage.alpha){ rage.t = Math.min(rage.t + 2, 30); rage.max = Math.max(rage.max, rage.t); }
+// knocks down and hurts every raider in a ring around a point
+function shockwave(at, R, dmg, stun){
+  for (const e of enemies){
+    if (!e.alive) continue;
+    const d = new V3(e.pos.x - at.x, 0, e.pos.z - at.z), dist = d.length();
+    if (dist > R || Math.abs((e.y || 0) - at.y) > 2) continue;
+    if (!e.remote){ e.stunT = Math.max(e.stunT || 0, stun*(1 - dist/(R*1.5))); e.flinch = .35; }
+    damageEnemy(e, dmg*(1 - dist/(R*1.6)), false, d.normalize(), 'claw');
+  }
+  spawnPuff(at.clone().setY(at.y + .3), 0xc9ad83, 1.4, 1.2, 1); shake = Math.max(shake, .07); rumble(1, .9, 300); sfx.boom(2);
 }
+
+/* Stampede (5 kills): mark a line like an airstrike; a herd of glowing spirit beasts charges along it,
+   through walls, trampling every raider in the way. */
+const stampJobs = [];
+const stampMat = new THREE.MeshStandardMaterial({ color:0xc98a3a, emissive:0xff9a2a, emissiveIntensity:.35, roughness:.7, transparent:true, opacity:.9 });
+function makeBeast(){
+  const g = new THREE.Group(), box = (w, h, d, x, y, z) => { const m = new THREE.Mesh(Bx(w, h, d), stampMat); m.position.set(x, y, z); g.add(m); return m; };
+  box(1.1, 1.0, 2.2, 0, 1.35, 0); box(1.25, 1.2, .9, 0, 1.55, .7);                 // body and hump
+  const head = box(.6, .6, .8, 0, 1.25, 1.45);
+  for (const sx of [-1, 1]){ const h = new THREE.Mesh(new THREE.ConeGeometry(.08, .55, 6), stampMat); h.position.set(sx*.4, 1.6, 1.45); h.rotation.z = -sx*1.1; g.add(h); }
+  const legs = [];
+  for (const [x, z] of [[-.38, .75], [.38, .75], [-.38, -.75], [.38, -.75]]){ const l = new THREE.Group(); l.position.set(x, 1, z); const m = new THREE.Mesh(Bx(.24, 1, .24), stampMat); m.position.y = -.5; l.add(m); g.add(l); legs.push(l); }
+  g.userData = { legs, head };
+  return g;
+}
+function callStampede(p){
+  airAim = false; airMark.visible = false; sInv.stampede--;
+  const dir = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)).normalize(), side = new V3(-dir.z, 0, dir.x);
+  const beasts = [];
+  for (let i=0;i<9;i++){
+    const g = makeBeast(), off = (i % 3 - 1)*2.6 + (Math.random() - .5), back = Math.floor(i/3)*3.2 + Math.random()*1.5;
+    g.position.copy(p).addScaledVector(dir, -48 - back).addScaledVector(side, off); g.position.y = 0;
+    g.lookAt(g.position.clone().add(dir)); scene.add(g); beasts.push({ g, hit:new Set(), ph:Math.random()*6 });
+  }
+  stampJobs.push({ beasts, dir, p:p.clone(), run:0, puffT:0 });
+  sfx.horn(); banner('Stampede'); feed('Stampede incoming', true);
+}
+function updateStampedes(dt){
+  for (let i=stampJobs.length-1;i>=0;i--){
+    const S = stampJobs[i]; S.run += 22*dt; S.puffT -= dt;
+    for (const b of S.beasts){
+      b.g.position.addScaledVector(S.dir, 22*dt); b.ph += dt*14;
+      b.g.userData.legs.forEach((l, j) => { l.rotation.x = Math.sin(b.ph + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI/2 : 0))*.7; });
+      b.g.position.y = Math.abs(Math.sin(b.ph))*.12;
+      for (const e of enemies){
+        if (!e.alive || b.hit.has(e)) continue;
+        if (Math.hypot(e.pos.x - b.g.position.x, e.pos.z - b.g.position.z) < 1.9){ b.hit.add(e); if (!e.remote) e.flinch = .4; damageEnemy(e, 400, false, S.dir, 'stampede'); }
+      }
+    }
+    if (S.puffT <= 0){ S.puffT = .12; const b = S.beasts[(Math.random()*S.beasts.length)|0]; spawnPuff(b.g.position.clone().setY(.4), 0xc9ad83, .5, .9, .8); }
+    const near = Math.min(...S.beasts.map(b => b.g.position.distanceTo(P.pos)));
+    if (near < 18){ shake = Math.max(shake, .025*(1 - near/18)); }
+    if (S.run > 105){ for (const b of S.beasts) scene.remove(b.g); stampJobs.splice(i, 1); }
+  }
+}
+function clearStampedes(){ for (const S of stampJobs) for (const b of S.beasts) scene.remove(b.g); stampJobs.length = 0; }
+
+/* Apex Form (8 kills): grow into a giant for 20 s, seen in third person. Claws hit everything in front of you,
+   landing a jump slams the ground, you take 75% less damage and kills heal you. */
+function startRage(){
+  rage.t = rage.max = 20; rage.cd = 0;
+  reloading = false; ads = false; inspectT = 0;
+  sfx.roar(animalSpecies()[0]); shake = Math.max(shake, .08); rumble(1, .9, 600);
+  banner('Apex Form'); toast(isTouch ? 'Apex Form! Tap Fire to claw, jump to slam the ground.' : 'Apex Form! Fire to claw, jump and land to slam the ground.', 3500);
+}
+function rageKill(){ if (rage.t > 0) P.hp = Math.min(100, P.hp + 20); }
 function clawSwipe(){
   if (rage.cd > 0 || P.down || P.dead || state !== 'play') return;
-  rage.cd = rage.alpha ? .26 : .32; rage.swing = 1; rage.side = -rage.side; sfx.swish();
-  const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)); let best = null, bd = 6;
+  rage.cd = .34; rage.swing = 1; rage.side = -rage.side; sfx.swish();
+  const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)); let near = null, nd = 7, hits = 0;
   for (const e of enemies){
     if (!e.alive) continue;
     const d = new V3(e.pos.x - P.pos.x, 0, e.pos.z - P.pos.z), dist = d.length();
-    if (Math.abs((e.y || 0) - P.pos.y) > 1.4) continue;
+    if (Math.abs((e.y || 0) - P.pos.y) > 2.4) continue;
     const dot = d.normalize().dot(f);
-    if ((dist < 3.2 && dot > .35) || (dist < 6 && dot > .8)){ if (dist < bd){ best = e; bd = dist; } }
+    if (dist < 4.8 && dot > .2){ damageEnemy(e, 220, false, f, 'claw'); hits++; }
+    else if (dist < nd && dot > .75){ near = e; nd = dist; }
   }
-  if (!best) return;
-  if (bd > 2.4){ const d = new V3(best.pos.x - P.pos.x, 0, best.pos.z - P.pos.z), l = d.length(); P.pos.addScaledVector(d.normalize(), Math.max(0, l - 1.4)); collide(P.pos, .4); }   // pounce
-  damageEnemy(best, rage.alpha ? 190 : 140, false, f, 'claw'); sfx.stab(); shake = Math.max(shake, .03); rumble(.7, .5, 120);
+  if (!hits && near){ const d = new V3(near.pos.x - P.pos.x, 0, near.pos.z - P.pos.z), l = d.length(); P.pos.addScaledVector(d.normalize(), Math.max(0, l - 2.6)); collide(P.pos, .4); damageEnemy(near, 220, false, f, 'claw'); hits++; }
+  if (hits){ sfx.stab(); shake = Math.max(shake, .04); rumble(.8, .6, 140); }
 }
 // first-person paws: furred forearms with three claws each, swiping in turn
 const clawG = new THREE.Group(); clawG.visible = false; gunCam.add(clawG);
@@ -4799,23 +4879,20 @@ function buildClaws(){
     clawG.add(g); clawPaws.push(g);
   }
 }
+let apexK = 0;   // 0..1 while growing into or out of Apex Form
 function updateRage(dt){
   if (rage.cd > 0) rage.cd -= dt;
   rage.swing = Math.max(0, rage.swing - dt*4.5);
-  if (rage.t > 0){ rage.t -= dt; if (rage.t <= 0){ rage.t = 0; feed(rage.alpha ? 'Alpha Rage over' : 'Berserker over'); } }
+  if (rage.t > 0){ rage.t -= dt; if (rage.t <= 0){ rage.t = 0; feed('Apex Form over'); } }
+  apexK += ((rage.t > 0 ? 1 : 0) - apexK)*Math.min(1, dt*3);
   rageFx = rage.t > 0 ? Math.min(1, rage.t/1.5, (rage.max - rage.t)*3) : 0;
-  clawG.visible = rage.t > 0 && !hubMode && !predator && tpBlend < .3;
-  if (!clawG.visible) return;
-  const breathe = Math.sin(T*6)*.008, bob = Math.sin(T*9)*Math.min(1, Math.hypot(P.vel.x, P.vel.z)/6)*.02;
-  for (const g of clawPaws){
-    const U = g.userData, active = U.side === rage.side ? Math.sin((1 - rage.swing)*Math.PI)*(rage.swing > 0 ? 1 : 0) : 0;
-    g.position.copy(U.rest).add(new V3(-U.side*active*.3, breathe + bob + active*.14, -active*.18));
-    g.rotation.set(.25 + active*.5, U.side*.28 + U.side*active*.6, U.side*(.2 + active*.9));
-    U.claw.emissiveIntensity = rageFx*(1.2 + Math.sin(T*10)*.3);
-  }
+  clawG.visible = false;
+  updateStampedes(dt);
 }
-function useBestStreak(){ if (airAim){ useStreak('air'); return; } for (const S of STREAKS.slice().reverse()) if (sInv[S.k] && !(S.k === 'drone' && drone)){ useStreak(S.k); return; } }
+function useBestStreak(){ if (airAim){ useStreak(aimKind); return; } for (const S of STREAKS.slice().reverse()) if (sInv[S.k] && !(S.k === 'drone' && drone)){ useStreak(S.k); return; } }
 const airMark = new THREE.Group(); airMark.visible = false; scene.add(airMark);
+const stampPath = new THREE.Mesh(new THREE.PlaneGeometry(7, 70), new THREE.MeshBasicMaterial({ color:0xffb340, transparent:true, opacity:.22, depthWrite:false, side:THREE.DoubleSide }));
+stampPath.rotation.x = -Math.PI/2; stampPath.position.y = .07; stampPath.visible = false; airMark.add(stampPath);
 {
   const r = new THREE.Mesh(new THREE.RingGeometry(2.6,3.1,40), new THREE.MeshBasicMaterial({ color:0xff3b2f, transparent:true, opacity:.85, side:THREE.DoubleSide, depthWrite:false }));
   r.rotation.x = -HP; r.position.y = .06; airMark.add(r);
@@ -4868,9 +4945,10 @@ function spawnDrone(){
 function updateStreaks(dt){
   if (uavT > 0) uavT = Math.max(0, uavT - dt);
   if (airAim){
-    airMark.visible = true; airMark.position.copy(airTarget()); airMark.rotation.y += dt;
+    airMark.visible = true; airMark.position.copy(airTarget()); stampPath.visible = aimKind === 'stampede';
+    if (aimKind === 'stampede') airMark.rotation.y = P.yaw; else airMark.rotation.y += dt;
     if (ads){ airAim = false; airMark.visible = false; }
-    else if (firing && fireQueued){ fireQueued = false; callAirstrike(airMark.position); }
+    else if (firing && fireQueued){ fireQueued = false; if (aimKind === 'stampede') callStampede(airMark.position.clone()); else callAirstrike(airMark.position); }
   }
   for (let i=airJobs.length-1;i>=0;i--){
     const j = airJobs[i];
@@ -5879,7 +5957,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
   if (!e.alive) return;
   if (!src && perk('stopping')) dmg *= 1.25;
   if (e.type === 'armored' && !head && src !== 'knife' && src !== 'nade' && src !== 'air') dmg *= .5;
-  if (e.type === 'boss'){ if (src === 'knife') dmg = 120; else if (src === 'claw') dmg = rage.alpha ? 220 : 160; else if (!head && src !== 'nade' && src !== 'air') dmg *= .4; }
+  if (e.type === 'boss'){ if (src === 'knife') dmg = 120; else if (src === 'claw') dmg = Math.min(dmg, 200); else if (!head && src !== 'nade' && src !== 'air') dmg *= .4; }
   if (coop && coop.guest && e.remote) coopNoteHit(e, dmg);
   e.hp -= dmg; e.flash = 0.08; e.flinch = 0.18; e.sees = true; e.reaction = Math.min(e.reaction, 0.25);
   const killed = e.hp <= 0;
@@ -5909,10 +5987,10 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
       debris.push({ obj:r, vel:new V3(dir.x*1.5 + (Math.random()-.5), 1.5, dir.z*1.5 + (Math.random()-.5)), spin:new V3((Math.random()-.5)*6, 0, (Math.random()-.5)*6), life:2.9 });
     }
     if (src === 'claw' || rage.t > 0) rageKill();
-    const LBL = { claw:'Claw kill', knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill', pet:'Companion kill' };
-    const pts = Math.round((src === 'knife' || src === 'claw' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' || src === 'pet' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
+    const LBL = { stampede:'Stampede kill', claw:'Claw kill', knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill', pet:'Companion kill' };
+    const pts = Math.round((src === 'knife' || src === 'claw' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' || src === 'pet' || src === 'stampede' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
     const tn = e.type === 'armored' ? 'Armored down' : e.type === 'sniper' ? 'Sniper down' : e.type === 'rusher' ? 'Rusher down' : 'Enemy down';
-    let xp = 100*(e.scoreMul || 1)*(src === 'air' || src === 'drone' || src === 'pet' ? .5 : 1) + (head ? 50 : 0) + (src === 'knife' || src === 'claw' ? 50 : 0);
+    let xp = 100*(e.scoreMul || 1)*(src === 'air' || src === 'drone' || src === 'pet' || src === 'stampede' ? .5 : 1) + (head ? 50 : 0) + (src === 'knife' || src === 'claw' ? 50 : 0);
     if (e.type === 'boss'){
       bossKills++; queuePrompt('boss'); addMilestone(`Juggernaut kill, wave ${wave}`); xp = 2500; score += 2500; sInv.air++; feed('Juggernaut down: +2500 and a free airstrike', true); banner('Juggernaut down');
       for (const k of ['ammo','health','nade']) spawnPickup(k, e.pos.x + (Math.random()-.5)*3, e.pos.z + (Math.random()-.5)*3);
@@ -5920,7 +5998,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
     score += pts; splash(pts, (LBL[src] || (head ? 'Headshot' : e.type === 'boss' ? (e.shogun ? 'Shogun down' : 'Juggernaut down') : tn)) + `  +${Math.round(xp)} XP`, head || src === 'knife');
     giveXP(xp);
     if (head && !src) addHeadshot(cur());
-    if (src !== 'air' && src !== 'drone' && src !== 'pet') addStreakKill();
+    if (src !== 'air' && src !== 'drone' && src !== 'pet' && src !== 'stampede') addStreakKill();
     ggKill(src); if (gameMode === 'tdm') tdmKill(src);
     if (!src && CLASS_SET.has('scav')){ const SW = cur(); SW.reserve = Math.min(SW.maxRes, SW.reserve + SW.c.mag); }
     chalEvent('kill'); if (head && !src) chalEvent('head'); if (src === 'knife') chalEvent('knife'); if (src === 'nade'){ chalEvent('nade'); if (cur().rocket) chalEvent('rocket'); }
@@ -5940,7 +6018,8 @@ function damagePlayer(d, from, explosive){
   if (hubMode) return;
   if (state !== 'play') return;
   if (tdm && (tdm.protT > 0 || tdm.over)) return;
-  if (rage.t > 0) d *= rage.alpha ? .3 : .5;   // berserker: shrugs off half the damage (Alpha Rage: 70%)
+  if (pounce) return;                 // can't be hit mid-leap
+  if (rage.t > 0) d *= .25;           // Apex Form: 75% less damage
   if (tut) return;
   if (explosive && perk('armor')) d *= .65;
   P.hp -= d; P.lastHit = T; sfx.hurt(); rumble(.8, .3, 160);
@@ -6060,12 +6139,12 @@ function updateHUD(dt){
   vigPulse = Math.max(0, vigPulse - dt*1.4);
   $('vignette').style.opacity = Math.min(1, (1 - P.hp/100)*0.85 + vigPulse).toFixed(3);
   $('lens').style.opacity = (0.55 + adsF*0.45).toFixed(3);
-  const sk = streak + '|' + Object.values(sInv).join(',') + '|' + (uavT > 0) + !!drone + !!predator + (rage.t > 0) + rage.alpha + padActive + STREAKS.map(S => S.k).join();
+  const sk = streak + '|' + Object.values(sInv).join(',') + '|' + (uavT > 0) + !!drone + !!predator + (rage.t > 0) + !!pounce + stampJobs.length + padActive + STREAKS.map(S => S.k).join();
   if (hud.sk !== sk){
     hud.sk = sk; $('streakNum').textContent = `Streak ${streak}`;
     [...$('streaks').querySelectorAll('span')].forEach((el,i) => { const S = STREAKS[i], n = sInv[S.k];
       if (!S){ el.hidden = true; return; } el.hidden = false;
-      const active = (S.k === 'uav' && uavT > 0) || (S.k === 'drone' && drone) || (S.k === 'predator' && predator) || ((S.k === 'berserk' || S.k === 'alpha') && rage.t > 0 && rage.alpha === (S.k === 'alpha'));
+      const active = (S.k === 'uav' && uavT > 0) || (S.k === 'drone' && drone) || (S.k === 'predator' && predator) || (S.k === 'apex' && rage.t > 0) || (S.k === 'pounce' && !!pounce) || (S.k === 'stampede' && stampJobs.length > 0);
       el.className = n ? 'ready' : active ? 'active' : streak >= needOf(S) ? 'used' : '';
       el.innerHTML = (isTouch ? '' : `<kbd>${padActive ? ['▲','▶','▼'][i] : S.key}</kbd>`) + S.name + `<em>${n ? (n > 1 ? '×' + n : 'Ready') : active ? 'Active' : Math.max(0, needOf(S) - streak) + ' more'}</em>`; });
   }
@@ -6119,21 +6198,21 @@ function updatePlayer(dt){
   const wantSprint = (keys.ShiftLeft || keys.ShiftRight || padSprint || (touch.moveId !== null && touch.my < -0.92)) && fz > 0.5;
   if (wantSprint && P.crouch && P.slideT <= 0){ P.crouch = false; $('tCrouch').classList.remove('on'); }
   const sprint = wantSprint && !ads && !firing && !P.crouch;
-  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : (sprint ? 9 : 5.6)))*(perk('quick') ? 1.06 : 1)*(rage.t > 0 ? (rage.alpha ? 1.4 : 1.3) : 1);
+  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : (sprint ? 9 : 5.6)))*(perk('quick') ? 1.06 : 1)*(rage.t > 0 ? 1.25 : 1);
   const s = Math.sin(P.yaw), c = Math.cos(P.yaw);
   const jump = keys.Space || touch.jump; touch.jump = false;
   if (P.slideT > 0){
     P.slideT -= dt;
     const sp = 3 + 10.5*Math.max(0, P.slideT/SLIDE);
     P.vel.x = P.slideDir.x*sp; P.vel.z = P.slideDir.z*sp;
-    if (jump && P.onGround){ P.slideT = 0; P.crouch = false; P.vel.y = 7.2; P.onGround = false; $('tCrouch').classList.remove('on'); }
+    if (jump && P.onGround){ P.slideT = 0; P.crouch = false; P.vel.y = rage.t > 0 ? 9.5 : 7.2; P.onGround = false; $('tCrouch').classList.remove('on'); }
   } else {
     const tx = (-s*fz + c*fx)*speed, tz = (-c*fz - s*fx)*speed;
     const acc = P.onGround ? 14 : 3;
     P.vel.x += (tx - P.vel.x)*Math.min(1, acc*dt); P.vel.z += (tz - P.vel.z)*Math.min(1, acc*dt);
     if (jump && P.onGround){
       if (P.crouch){ P.crouch = false; $('tCrouch').classList.remove('on'); }
-      else { P.vel.y = 7.2; P.onGround = false; }
+      else { P.vel.y = rage.t > 0 ? 9.5 : 7.2; P.onGround = false; }
     }
   }
   // ladders
@@ -6155,12 +6234,14 @@ function updatePlayer(dt){
   }
   P.vel.y -= 22*dt;
   const vyBefore = P.vel.y, wasGround = P.onGround;
+  if (pounce){ updatePounce(dt); return; }
   P.pos.addScaledVector(P.vel, dt);
   const gy = groundAt(P.pos.x, P.pos.z, P.pos.y);
   if (P.pos.y <= gy){
     P.pos.y = gy; P.vel.y = 0;
     if (!wasGround && vyBefore < -3) landDip = Math.min(.14, -vyBefore*0.014);
-    if (!wasGround && vyBefore < -12.5) damagePlayer((-vyBefore - 12.5)*9, P.pos.clone().add(new V3(0,0,1)));
+    if (!wasGround && vyBefore < -12.5 && rage.t <= 0) damagePlayer((-vyBefore - 12.5)*9, P.pos.clone().add(new V3(0,0,1)));
+    if (!wasGround && vyBefore < -4 && rage.t > 0) shockwave(P.pos, 6.5, 120, 2);   // Apex Form: landing slams the ground
     P.onGround = true;
   } else if (P.pos.y > gy + .06) P.onGround = false;
   collide(P.pos, P.r, P.pos.y);
@@ -6331,7 +6412,7 @@ function resetGame(){
   camH = 1.62; landDip = 0; rollZ = 0; shake = 0; strafeF = 0; mdx = mdy = 0; sway.x = sway.y = 0; slideF = 0; $('tCrouch').classList.remove('on');
   P.pos.set(0,0,36); P.vel.set(0,0,0);
   WEAPONS.forEach(W => { applyAtt(W); W.ammo = W.c.mag; W.reserve = W.res; });
-  streak = 0; uavT = 0; airAim = false; airMark.visible = false; sInv.uav = sInv.air = sInv.drone = sInv.care = sInv.predator = sInv.howl = sInv.berserk = sInv.alpha = 0; rage.t = 0; rageFx = 0; endPredator(false); for (const c of careCrates) scene.remove(c.g); careCrates.length = 0;
+  streak = 0; uavT = 0; airAim = false; airMark.visible = false; sInv.uav = sInv.air = sInv.drone = sInv.care = sInv.predator = sInv.pounce = sInv.stampede = sInv.apex = 0; rage.t = 0; rageFx = 0; apexK = 0; pounce = null; clearStampedes(); endPredator(false); for (const c of careCrates) scene.remove(c.g); careCrates.length = 0;
   fragN = perk('frag3') ? 3 : 2; tacN = perk('tac3') ? 3 : 2; gameXP = 0;
   if (perk('uavstart')) sInv.uav = 1; if (perk('airstart')) sInv.air = 1;
   WEAPONS.forEach(W => { const m = perk('reserve') ? 1.3 : 1; W.res = Math.round(RES[W.id][0]*m); W.maxRes = Math.round(RES[W.id][1]*m); W.reserve = W.res; applyCamo(W); }); aimNade = null; throwT = 0; meleeT = 0; flashFx = 0; knifeG.visible = false; arcLine.visible = arcRing.visible = false; reloading = false; shotsInRow = 0; recoilAcc = 0; kick = 0; kickR = 0; firing = false; ads = false; $('tAim').classList.remove('on');
@@ -8599,11 +8680,11 @@ const STREAK_DEFS = {
   air:{ name:'Precision Airstrike', need:6, d:'A jet bombs a line you mark' },
   drone:{ name:'Attack Drone', need:7, d:'Hunts raiders for 30 seconds' },
   // animal operators get these three instead of the class's streaks
-  howl:{ name:'Howl', need:3, d:'A war cry that stuns raiders nearby and reveals the rest for 15 seconds', animal:true },
-  berserk:{ name:'Berserker', need:5, d:'Claws out for 15 seconds: faster, tougher, and every kill heals you', animal:true },
-  alpha:{ name:'Alpha Rage', need:8, d:'A longer, stronger Berserker where every kill adds time', animal:true }
+  pounce:{ name:'Pounce', need:3, d:'Leap onto the raider in your sights, up to 25 m away, and knock down everyone near the landing', animal:true },
+  stampede:{ name:'Stampede', need:5, d:'Mark a line: a herd of spirit beasts charges along it, trampling every raider in the way', animal:true },
+  apex:{ name:'Apex Form', need:8, d:'Grow into a giant for 20 seconds: claws, ground slams, 75% less damage', animal:true }
 };
-const ANIMAL_STREAKS = ['howl', 'berserk', 'alpha'];
+const ANIMAL_STREAKS = ['pounce', 'stampede', 'apex'];
 const PRIMARIES = [0, 1, 2, 3], SECONDARIES = ['pistol', 'launcher'];
 let klass;
 try { klass = JSON.parse(store.get('dy-class') || 'null'); } catch(e){ klass = null; }
@@ -8619,7 +8700,6 @@ function applyClass(){
   // animal operators use their own three streaks (the operator settings load later than this on startup)
   let animalOp = false; try { animalOp = opMine().k === 'animal'; } catch(e){}
   STREAKS.length = 0; STREAKS.push(...buildStreaks(animalOp ? ANIMAL_STREAKS : klass.streaks));
-  if (animalOp) STREAKS[0].name = warCryName();
   tacType = klass.tac === 'smoke' ? 'smoke' : 'flash';
   startW = PRIMARIES.includes(klass.primary) ? klass.primary : 0;
   hud.sk = '';
@@ -9286,6 +9366,7 @@ function opBodyUpdate(dt){
   if (o.gun && o.gunCamo !== W.camo + '|' + W.id){ o.gunCamo = W.camo + '|' + W.id; opGunCamo(o, W); }
   o.root.position.set(P.pos.x, P.pos.y, P.pos.z);
   o.root.rotation.y = P.yaw + Math.PI;
+  o.root.scale.setScalar(1 + apexK*.75);
   const fwd = -(P.vel.x*Math.sin(P.yaw) + P.vel.z*Math.cos(P.yaw));
   poseOp(o, dt, { spd:Math.hypot(P.vel.x, P.vel.z), back:fwd < -.5 && !P.sprinting, crouch:P.slideT > 0 ? 1 : P.crouch ? .75 : 0, pitch:P.pitch,
     aim:!hubMode && !P.sprinting && swapT === 0, reload:reloading, flash:flashT });
@@ -9295,13 +9376,15 @@ function opBodyUpdate(dt){
 const tpEye = new V3(), _t1 = new V3(), _t2 = new V3(), _t3 = new V3(), _tpC = new V3();
 let tpBlend = 0, tpDist = 2.7, tpHint = false;
 function tpWanted(){
+  if (rage.t > 0 && !predator) return true;      // Apex Form is always seen from behind
   if (cfg.view !== 'tp' || predator) return false;
   if (!hubMode){ const W = cur(); if (W.scope && adsF > .5) return false; }
   return true;
 }
 function tpPlace(out, eye){
   const q = camera.quaternion, right = _t1.set(1, 0, 0).applyQuaternion(q), back = _t2.set(0, 0, 1).applyQuaternion(q);
-  const side = .72 - adsF*.06, dist = 2.75 - adsF*1.05, lift = .32 - adsF*.08;
+  const big = 1 + apexK*.75;   // the camera backs off as the player grows
+  const side = (.72 - adsF*.06)*big, dist = (2.75 - adsF*1.05)*(1 + apexK*1.1), lift = (.32 - adsF*.08) + apexK*1.1;
   const piv = _t3.copy(eye); piv.y += lift;
   let s = side; ray.set(piv, right); ray.far = side + .3; let h = ray.intersectObjects(solids, false); if (h.length) s = Math.max(0, h[0].distance - .3);
   piv.addScaledVector(right, s);
