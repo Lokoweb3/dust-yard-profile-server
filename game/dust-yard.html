@@ -4808,8 +4808,17 @@ function shockwave(at, R, dmg, stun){
 const stampJobs = [];
 // elephants: a cartoon herd built from simple shapes, with stomping legs, a swinging trunk and flapping ears
 const eleSkin = new THREE.MeshStandardMaterial({ color:0x8d8781, roughness:.95 }), eleDark = new THREE.MeshStandardMaterial({ color:0x6f6a65, roughness:.95 });
+// war gear in the game's colours: desert armour, olive cloth, red stripes, dark metal
+const eleArmor = new THREE.MeshStandardMaterial({ color:0xc9b48a, roughness:.55, metalness:.25 }), eleCloth = new THREE.MeshStandardMaterial({ color:0x58663a, roughness:.9 });
+const eleRed = new THREE.MeshStandardMaterial({ color:0xb8322a, roughness:.7 }), eleMetal = new THREE.MeshStandardMaterial({ color:0x2b2e31, roughness:.4, metalness:.7 });
+const eleCrate = new THREE.MeshStandardMaterial({ color:0x4d5733, roughness:.8 }), eleGlass = new THREE.MeshStandardMaterial({ color:0x5fb7e8, roughness:.1, metalness:.3, emissive:0x113344 });
 const eleTusk = new THREE.MeshStandardMaterial({ color:0xf3ecdc, roughness:.4 }), eleEye = new THREE.MeshStandardMaterial({ color:0x111111, roughness:.3 }), eleEar = new THREE.MeshStandardMaterial({ color:0x9a8f8a, roughness:.95, side:THREE.DoubleSide });
 function makeBeast(){
+  // the armour wears the game's desert camo and the blanket its woodland camo (made later in the script, so set on first use)
+  if (!eleArmor.map && typeof OP_PATTERNS !== 'undefined'){
+    if (OP_PATTERNS.desertc){ eleArmor.map = OP_PATTERNS.desertc.map; eleArmor.color.set(0xffffff); eleArmor.needsUpdate = true; }
+    if (OP_PATTERNS.woodland){ eleCloth.map = OP_PATTERNS.woodland.map; eleCloth.color.set(0xd8dccc); eleCloth.needsUpdate = true; }
+  }
   const g = new THREE.Group(), sph = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = g) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); return m; };
   sph(1, eleSkin, 0, 2.05, 0, 1.15, 1.05, 1.55);                       // body
   sph(.8, eleSkin, 0, 2.15, -.75, 1.05, 1, 1);                         // rump
@@ -4835,6 +4844,30 @@ function makeBeast(){
     const foot = new THREE.Mesh(new THREE.CylinderGeometry(.36, .38, .12, 12), eleDark); foot.position.y = -1.52; l.add(foot);
     legs.push(l);
   }
+  // ---- war gear ----
+  const bx = (w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0, parent = g) => { const m = new THREE.Mesh(Bx(w, h, d), mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; parent.add(m); return m; };
+  // saddle blanket over the back, hanging down both sides, with a red stripe along the edge
+  bx(1.9, .1, 2.3, eleCloth, 0, 3.06, -.1);
+  for (const sx of [-1, 1]){ bx(.08, 1.0, 2.2, eleCloth, sx*1.12, 2.58, -.1, 0, 0, sx*.12); bx(.09, .12, 2.24, eleRed, sx*1.18, 2.06, -.1, 0, 0, sx*.12); }
+  // armour: a chest plate and shoulder plates
+  bx(1.5, .9, .16, eleArmor, 0, 2.0, 1.32, -.25);
+  for (const sx of [-1, 1]) sph(.5, eleArmor, sx*.98, 2.45, .75, .35, .8, .9);
+  // cargo on the back: ammo crates, a sandbag and a red flag on a pole
+  bx(.7, .45, .55, eleCrate, -.38, 3.35, -.35); bx(.7, .45, .55, eleCrate, .38, 3.35, -.35); bx(.72, .06, .57, eleMetal, -.38, 3.58, -.35); bx(.72, .06, .57, eleMetal, .38, 3.58, -.35);
+  sph(.32, eleArmor, 0, 3.25, .45, 1.6, .55, 1);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 1.6, 6), eleMetal); pole.position.set(.55, 4.1, -.85); g.add(pole);
+  bx(.04, .38, .6, eleRed, .55, 4.7, -1.15);
+  // leg guards on the front legs
+  for (const l of legs.slice(0, 2)){ const m = new THREE.Mesh(new THREE.CylinderGeometry(.38, .36, .55, 12, 1, true), eleArmor); m.position.y = -.35; m.castShadow = true; l.add(m); }
+  // head: an armoured brow plate with rivets, a helmet with goggles, metal tusk caps
+  sph(.6, eleArmor, 0, .32, .42, 1.15, .55, .6, head);
+  for (const sx of [-1, 0, 1]) sph(.05, eleMetal, sx*.28, .36, .78, 1, 1, 1, head);
+  sph(.5, eleArmor, 0, .58, -.05, 1.05, .55, 1, head);
+  bx(1.05, .08, .1, eleRed, 0, .55, .38, 0, 0, 0, head);
+  for (const sx of [-1, 1]){ const gg = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .1, 14), eleMetal); gg.rotation.x = HP; gg.position.set(sx*.33, .3, .68); head.add(gg);
+    const gl = new THREE.Mesh(new THREE.CircleGeometry(.1, 14), eleGlass); gl.position.set(sx*.33, .3, .735); head.add(gl); }
+  for (const t of head.children.filter(c => c.material === eleTusk)){ const cap = new THREE.Mesh(new THREE.ConeGeometry(.115, .3, 8), eleMetal); cap.position.copy(t.position); cap.rotation.copy(t.rotation); cap.translateY(.42); head.add(cap); }
+  mergeParts(g); mergeParts(head);
   const tail = new THREE.Group(); tail.position.set(0, 2.4, -1.5); g.add(tail);
   const tm = new THREE.Mesh(new THREE.CylinderGeometry(.04, .03, .8, 6), eleDark); tm.position.y = -.4; tail.add(tm); tail.rotation.x = -.3;
   g.scale.setScalar(.9 + Math.random()*.25);
@@ -4851,7 +4884,7 @@ function callStampede(p){
     g.lookAt(g.position.clone().add(dir)); scene.add(g); beasts.push({ g, hit:new Set(), ph:Math.random()*6 });
   }
   stampJobs.push({ beasts, dir, p:p.clone(), run:0, puffT:0 });
-  sfx.trumpet(); setTimeout(() => sfx.trumpet(1.15), 450); banner('Stampede'); feed('Elephant stampede incoming', true);
+  sfx.trumpet(); setTimeout(() => sfx.trumpet(1.15), 450); banner('Stampede'); feed('War elephants incoming', true);
 }
 function updateStampedes(dt){
   for (let i=stampJobs.length-1;i>=0;i--){
@@ -8722,7 +8755,7 @@ const STREAK_DEFS = {
   drone:{ name:'Attack Drone', need:7, d:'Hunts raiders for 30 seconds' },
   // animal operators get these three instead of the class's streaks
   pounce:{ name:'Pounce', need:3, d:'Leap onto the raider in your sights, up to 25 m away, and knock down everyone near the landing', animal:true },
-  stampede:{ name:'Stampede', need:5, d:'Mark a line: a herd of elephants charges along it, trampling every raider in the way', animal:true },
+  stampede:{ name:'Stampede', need:5, d:'Mark a line: a herd of armoured war elephants charges along it, trampling every raider in the way', animal:true },
   apex:{ name:'Apex Form', need:8, d:'Grow into a giant for 20 seconds: claws, ground slams, 75% less damage', animal:true }
 };
 const ANIMAL_STREAKS = ['pounce', 'stampede', 'apex'];
