@@ -4780,19 +4780,24 @@ const katanaG = new THREE.Group(); gunCam.add(katanaG); katanaG.visible = false;
 (function buildKatana(){
   const h = gripHand(.017, 1, false); katanaG.add(h);
   const wrap = MS(0x1a1a1e,.85), guardM = MS(0xc9a13b,.3,.9), steel = MS(0xd6dade,.18,.95);
-  vp(h, Cy(.017,.018,.24,12), wrap, 0,-.04,0);
+  vp(h, Cy(.017,.018,.32,12), wrap, 0,-.08,0);
+  vp(h, Cy(.02,.02,.02,12), guardM, 0,-.245,0);   // pommel cap
+  // held in two hands: the left hand grips the handle just below the right
+  const h2 = gripHand(.017, -1, false); h2.position.y = -.135; h.add(h2);
   vp(h, Cy(.04,.04,.008,20), guardM, 0,.085,0);
   const sh = new THREE.Shape(); sh.moveTo(-.018,.09); sh.lineTo(.018,.09); sh.quadraticCurveTo(.024,.5,.008,.86); sh.lineTo(-.008,.93); sh.quadraticCurveTo(-.016,.5,-.018,.09);
   const bg = new THREE.ExtrudeGeometry(sh, { depth:.004, bevelEnabled:true, bevelThickness:.0015, bevelSize:.001, bevelSegments:1, curveSegments:10 }); bg.translate(0,0,-.002); bg.rotateY(HP);
   h.add(new THREE.Mesh(bg, steel));
   katanaG.updateMatrixWorld(true);
   const w = h.localToWorld(new V3(.03,-.05,.045)); katanaG.worldToLocal(w);
-  forearm(katanaG, w, new V3(.18,-.42,-.2), false);   // set so the arm trails back and down while the blade sweeps forward
+  forearm(katanaG, w, new V3(.18,-.42,-.2), false);   // set so the arms trail back and down while the blade sweeps forward
+  const w2 = h2.localToWorld(new V3(-.03,-.05,.045)); katanaG.worldToLocal(w2);
+  forearm(katanaG, w2, new V3(-.14,-.5,-.18), true);
 })();
 // the sweep's trail: a pale arc that flashes across the view
 const slashArc = new THREE.Mesh(new THREE.RingGeometry(.5, .6, 32, 1, Math.PI*.08, Math.PI*.84), new THREE.MeshBasicMaterial({ color:0xeaf4ff, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide }));
 slashArc.position.set(0, -.1, -.75); slashArc.rotation.z = -.2; slashArc.visible = false; gunCam.add(slashArc);
-const KATANA_KEYS = [[0,[.4,-.3,-.34, -.6,-.9,-.9]],[.3,[.36,-.16,-.44, -1.15,-.8,-.6]],[.5,[.04,-.2,-.52, -1.35,0,0]],[.7,[-.3,-.26,-.44, -1.2,.9,.6]],[1,[.36,-.6,-.28, -.4,0,-.6]]];
+const KATANA_KEYS = [[0,[.3,-.28,-.36, -.6,-.9,-.9]],[.3,[.28,-.14,-.46, -1.15,-.8,-.6]],[.5,[.02,-.18,-.54, -1.35,0,0]],[.7,[-.24,-.24,-.46, -1.2,.9,.6]],[1,[.28,-.58,-.3, -.4,0,-.6]]];
 const KNIFE_KEYS = [[0,[.3,-.42,-.25, .4,0,-1.0]],[.25,[.08,-.16,-.42, -.5,.2,.3]],[.5,[-.15,-.18,-.4, -.9,.5,1.1]],[1,[.32,-.52,-.2, 0,0,-.6]]];
 const meleeLen = () => (spPower() === 'tiger' ? .32 : .5) + (backGear() === 'katana' ? .12 : 0);
 // the katana hits everything in a wide arc in front of you, not just one raider
