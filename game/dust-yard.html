@@ -495,7 +495,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
       <kbd>Swap</kbd><span>Switch weapon</span>
     </div>
     <div class="keys" id="keysPad">
-      <kbd>PS5 controller</kbd><span>Left stick moves, right stick looks, R2 shoots, L2 aims, Square reloads, X jumps, Circle crouches or slides, L3 sprints, R3 knife, R1 frag, L1 tactical, D-pad left switches tactical, D-pad up/right/down call killstreaks, Triangle switches weapon, Options pauses</span>
+      <kbd>PS5 controller</kbd><span>Left stick moves, right stick looks, R2 shoots, L2 aims, Square reloads, X jumps (jump into low cover to climb it; with a Jetpack, hold X in the air to fly; with Air tanks, press X again in mid-air), Circle crouches or slides, L3 sprints, R3 knife (a sword slash with the Katana), R1 frag, L1 tactical, D-pad left switches tactical, D-pad up/right/down call killstreaks, Triangle switches weapon, Options pauses</span>
     </div>
     </details>
     <div class="best" id="padLine"></div>
@@ -6529,7 +6529,18 @@ function startWave(){
   if (bossPending) toSpawn = Math.round(toSpawn*.6);
   banner(bossPending ? `Wave ${wave}: boss wave` : `Wave ${wave}`);
 }
+// which detailed heads a map's raiders use, and loading them early (in the menu) so no raider shows the old head
+function factionHeads(map){
+  const fk = map ? raiderFactionFor(map) : raiderFaction();
+  return fk === 'wolves' ? ['wolfT', 'fox', 'wolf'] : fk === 'gorillas' ? ['ape', 'bear'] : [];
+}
+function preloadHeads(map){
+  try { for (const k of factionHeads(map)) ensureHD(k); const o = opMine(); if (o.k === 'animal'){ const sp = animalSpecies(); ensureHD(OP_HD_SPECIES[sp[0]]); if (o.f === 'wolfhd') ensureHD('wolf'); } else if (o.k === 'human') ensureHD(OP_HD_SKIN[o.f]); } catch(e){}
+}
+let headWait = 0;
 function updateWaves(dt){
+  // hold the first raiders back (up to 6 s) until their detailed heads have arrived
+  if (waveActive && wave <= 1 && headWait < 6 && factionHeads().some(hdPending)){ headWait += dt; return; }
   const alive = enemies.filter(e => e.alive).length;
   if (waveActive){
     if (bossPending){ spawnT -= dt; if (spawnT <= 0){ bossPending = false; spawnBoss(); spawnT = 2.5; } }
@@ -6566,7 +6577,7 @@ function updatePlayer(dt){
   const runSpd = 5.6 + (9*(spPower() === 'wolf' ? 1.15 : 1) - 5.6)*(sprint ? .55 + .45*smooth(sprintRamp) : 0);
   const speed = (ads ? 3.2 : (P.crouch ? 2.8 : runSpd))*(perk('quick') ? 1.06 : 1)*(inRiver(P.pos) ? .62 : 1)*(rage.t > 0 ? 1.25 : 1);
   const s = Math.sin(P.yaw), c = Math.cos(P.yaw), s0 = s, c0 = c, fz0 = Math.max(.6, fz);
-  const jumpKey = keys.Space || touch.jump; touch.jump = false;
+  const jumpKey = keys.Space || touch.jump || padJumpHeld || touch.jumpHeld; touch.jump = false;
   // jump buffering (a press just before landing still counts) and coyote time (just after walking off an edge)
   const jumpPress = jumpKey && !P.jumpHeld;
   if (jumpPress) jumpBuf = .14; P.jumpHeld = jumpKey; jumpBuf = Math.max(0, jumpBuf - dt);
@@ -6852,7 +6863,7 @@ function startGame(fromPad){
   if (padClicking) fromPad = true;
   leaveHub(); removePet(); tutStop(); applyClass();
   if (fromPad !== true) setPadActive(false);
-  setMap(selectedMap); initAudio(); resetGame();
+  setMap(selectedMap); initAudio(); resetGame(); headWait = 0; preloadHeads(selectedMap);
   state = 'play'; show(null); $('hud').hidden = false; $('touch').hidden = !isTouch;
   tdmStop(); if (gameMode === 'tdm'){ wave = 1; tdmStart(); } else if (!(coop && coop.guest)) startWave(); summonPet(); matchStart(); $('ggLine').textContent = ''; if (gameMode === 'gungame') ggStart(); if (pet) setTimeout(() => petSay('LFG'), 1200); if (fromPad !== true) requestLock();
   toast(isTouch ? 'Tap Swap or the weapon bar to change guns' : padActive ? 'Press Triangle to switch weapons' : 'Press 1 to 6 (or scroll) to switch weapons', 5000);
@@ -10417,6 +10428,8 @@ function openOp(){
   }
 }
 tintSleeves();
+// start fetching the heads this player will see soon after the page has settled
+setTimeout(() => preloadHeads(selectedMap), 1200);
 
 // ---- raider factions: one per map, picked in Settings ----
 function raiderFaction(){ const v = cfg.raiders || 'map'; if (v !== 'map') return v; if (packWave()) return 'wolves'; return currentMap === 'neon' ? 'aliens' : currentMap === 'yard' ? 'wolves' : 'gorillas'; }
@@ -10941,6 +10954,9 @@ tbtn('tFire', e => { firing = true; fireQueued = true; const t = e.changedTouche
 tbtn('tAim', () => { ads = !ads; $('tAim').classList.toggle('on', ads); });
 tbtn('tReload', () => reload());
 tbtn('tJump', () => { touch.jump = true; });
+// the touch Jump button can be held too (jetpack)
+$('tJump').addEventListener('pointerdown', () => { touch.jumpHeld = true; });
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('tJump').addEventListener(ev, () => { touch.jumpHeld = false; });
 tbtn('tCrouch', () => crouchPress());
 tbtn('tSwap', () => cycleWeapon(1));
 tbtn('tNade', () => startNade('frag'), () => releaseNade());
@@ -10989,7 +11005,7 @@ $('chatSend').addEventListener('click', sendChat);
 [...$('modePick').children].forEach(b => { b.classList.toggle('on', b.dataset.g === gameMode); b.addEventListener('click', () => { gameMode = b.dataset.g; store.set('dustyard-mode', gameMode); [...$('modePick').children].forEach(x => x.classList.toggle('on', x === b)); }); });
 [...$('mapPick').children].forEach(b => {
   b.classList.toggle('on', b.dataset.m === selectedMap);
-  b.addEventListener('click', () => { selectedMap = b.dataset.m; store.set('dustyard-map', selectedMap); [...$('mapPick').children].forEach(x => x.classList.toggle('on', x === b)); refreshBoard(); });
+  b.addEventListener('click', () => { selectedMap = b.dataset.m; store.set('dustyard-map', selectedMap); preloadHeads(selectedMap); [...$('mapPick').children].forEach(x => x.classList.toggle('on', x === b)); refreshBoard(); });
 });
 $('setPauseBtn').addEventListener('click', () => openSettings('pause'));
 $('setBack').addEventListener('click', () => show(settingsReturn === 'pause' ? 'pausePanel' : 'menu'));
@@ -11018,6 +11034,7 @@ addEventListener('resize', () => {
 
 /* ---------- Gamepad (PS5 DualSense / any standard controller) ---------- */
 // Standard mapping: 0 Cross, 1 Circle, 2 Square, 3 Triangle, 4 L1, 5 R1, 6 L2, 7 R2, 9 Options, 10 L3, 11 R3
+let padJumpHeld = false;
 let padPrev = [], padActive = false, padSprint = false, padMove = { x:0, y:0 }, padIndex = null;
 function dz(v, d=.14){ const a = Math.abs(v); if (a < d) return 0; return Math.sign(v) * Math.pow((a-d)/(1-d), 1.6); }
 function rumble(strong, weak, ms){
@@ -11128,7 +11145,7 @@ function pollPad(dt){
   let gp = null;
   for (const p of pads) if (p && p.connected){ gp = p; break; }
   padMove.x = padMove.y = 0;
-  if (!gp){ return; }
+  if (!gp){ padJumpHeld = false; return; }
   padIndex = gp.index;
   const held = i => !!gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.35);
   const now = gp.buttons.map((_, i) => held(i));
@@ -11151,7 +11168,8 @@ function pollPad(dt){
     if (hubMode){ if (pressed(12)) doEmote(0); if (pressed(15)) doEmote(1); if (pressed(13)) doEmote(2); if (pressed(14)) doEmote(3); }
     else { [[12, 0], [15, 1], [13, 2]].forEach(([b, i]) => { if (pressed(b) && STREAKS[i]) useStreak(STREAKS[i].k); }); }
     if (pressed(6)) ads = true;     if (released(6)) ads = false;      // L2 aim
-    if (pressed(0)) touch.jump = true;                                  // Cross jump
+    if (pressed(0)) touch.jump = true;                                  // Cross jump (hold it in the air to fly with the jetpack)
+    padJumpHeld = held(0);
     if (pressed(1)) crouchPress();                                      // Circle crouch + slide
     if (pressed(11)) startMelee();                                      // R3 melee
     if (pressed(5)) startNade('frag'); if (released(5)) releaseNade();  // R1 frag
