@@ -53,8 +53,8 @@ const YARD_LADDERS = [ { x:-18, z:-16.7, nx:0, nz:1, top:5.2 }, { x:20, z:11.3, 
 const yardLadderMeshes = YARD_LADDERS.map(makeLadder);
 MAPS.yard.objs = scene.children.slice(_wStart).filter(o => o !== dust);
 MAPS.yard.boxes = boxes.slice(); MAPS.yard.solids = solids.slice();
-MAPS.yard.ladders = YARD_LADDERS; MAPS.yard.platforms = [{ minX:27, maxX:35, minZ:-35, maxZ:-25, top:3.25 }];
-MAPS.yard.perches = [[-22,-18,5.2],[24,10,5.2],[-18,30,5.2],[31,-26.6,3.25]];
+MAPS.yard.ladders = YARD_LADDERS; MAPS.yard.platforms = [{ minX:27, maxX:35, minZ:-35, maxZ:-25, top:3.25 }, ...YARD_EXTRA.platforms];
+MAPS.yard.perches = [[-22,-18,5.2],[24,10,5.2],[-18,30,5.2],[31,-26.6,3.25], ...YARD_EXTRA.perches];
 
 // ---- Neon District: a rainy night-time city block
 const neonG = new THREE.Group(); neonG.visible = false; scene.add(neonG);
@@ -87,19 +87,19 @@ function buildNeon(){
     }
   }));
   const roofMat = new THREE.MeshStandardMaterial({ color:0x24252b, roughness:.85 });
+  // buildings are merged by window style (one draw call each), with a plain roof cap on top
+  const winMats = winTex.map(t => new THREE.MeshStandardMaterial({ map:t, emissive:0xffffff, emissiveMap:t, emissiveIntensity:.75, roughness:.75 }));
   function cityBox(x0,x1,z0,z1,h,st){
-    const w = x1-x0, d = z1-z0, t = winTex[st].clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(Math.max(1, Math.round(Math.max(w,d)/2.2)), Math.max(1, Math.round(h/1.8)));
-    const fm = new THREE.MeshStandardMaterial({ map:t, emissive:0xffffff, emissiveMap:t, emissiveIntensity:.75, roughness:.75 });
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), [fm,fm,roofMat,roofMat,fm,fm]);
-    m.position.set((x0+x1)/2, h/2, (z0+z1)/2); m.castShadow = m.receiveShadow = true;
-    neonG.add(m); solids.push(m); boxes.push({ minX:x0, maxX:x1, minZ:z0, maxZ:z1, top:h });
+    const w = x1-x0, d = z1-z0, g = new THREE.BoxGeometry(w,h,d); tileBox(g, w, h, d, 2.2, 1.8, 0);
+    kitAdd(g, winMats[st], (x0+x1)/2, h/2, (z0+z1)/2); g.dispose();
+    kitBox(w + .04, .06, d + .04, roofMat, (x0+x1)/2, h + .01, (z0+z1)/2);
+    boxes.push({ minX:x0, maxX:x1, minZ:z0, maxZ:z1, top:h });
   }
-  [[37,45,-45,-7,14,0],[9,37,-45,-38,10,1],[9,14,-38,-28,7,2],[22,30,-30,-22,4.2,1],
+  const CITY = [[37,45,-45,-7,14,0],[9,37,-45,-38,10,1],[9,14,-38,-28,7,2],[22,30,-30,-22,4.2,1],
    [-45,-37,-45,-7,12,1],[-37,-9,-45,-38,16,0],[-14,-9,-38,-28,7,2],[-30,-22,-30,-22,4.2,0],
    [37,45,7,45,11,0],[9,37,38,45,13,1],[9,14,28,38,7,2],[22,30,22,30,4.2,1],
    [-45,-37,7,45,15,1],[-37,-9,38,45,9,0],[-14,-9,28,38,7,2],[-30,-22,22,30,4.2,0],
-   [-9,9,-45,-41,8,2],[-9,9,41,45,8,2],[41,45,-7,7,8,2],[-45,-41,-7,7,8,2]].forEach(b => cityBox(...b));
+   [-9,9,-45,-41,8,2],[-9,9,41,45,8,2],[41,45,-7,7,8,2],[-45,-41,-7,7,8,2]]; CITY.forEach(b => cityBox(...b));
   // sidewalks (low curbs you can step onto)
   const walkMat = new THREE.MeshStandardMaterial({ color:0x3a3b40, roughness:.6, metalness:.1 });
   for (const [x0,x1,z0,z1] of [[9,11,-28,-9],[-11,-9,-28,-9],[9,11,9,28],[-11,-9,9,28],[11,37,-9,-7],[-37,-11,-9,-7],[11,37,7,9],[-37,-11,7,9]]){
@@ -120,17 +120,16 @@ function buildNeon(){
   for (const [x,z,s] of [[2,-5,4],[-5,24,3],[18,-2,3.5],[-20,-1,3],[26,-15,4],[-3,-33,3],[30,33,3],[-28,12,3.5]]){ const m = new THREE.Mesh(new THREE.CircleGeometry(s*.5,24), pudMat); m.rotation.x = -HP; m.position.set(x,.03,z); m.scale.set(1,.65,1); neonG.add(m); }
   // cars
   const carCols = [0x7a1626,0x1d3f6e,0xd0d2d6,0x1a1a1d,0x3d6b3a,0xc79a24];
+  const carBody = carCols.map(c => new THREE.MeshStandardMaterial({ color:c, roughness:.25, metalness:.75, envMapIntensity:1.5 }));
+  const carGlass = new THREE.MeshStandardMaterial({ color:0x0a0c12, roughness:.05, metalness:.9, envMapIntensity:2 });
+  const carHL = new THREE.MeshBasicMaterial({ color:0xfff3d0 }), carTL = new THREE.MeshBasicMaterial({ color:0xff2030 });
   function cityCar(x, z, alongZ, ci){
-    const g = new THREE.Group(), body = new THREE.MeshStandardMaterial({ color:carCols[ci % carCols.length], roughness:.25, metalness:.75, envMapIntensity:1.5 });
-    const glass = new THREE.MeshStandardMaterial({ color:0x0a0c12, roughness:.05, metalness:.9, envMapIntensity:2 });
-    const b = new THREE.Mesh(Bx(4.2,.75,1.8), body); b.position.y = .7; g.add(b);
-    const cab = new THREE.Mesh(Bx(2.2,.7,1.62), glass); cab.position.set(-.2,1.4,0); g.add(cab);
-    const roof = new THREE.Mesh(Bx(2,.08,1.6), body); roof.position.set(-.2,1.78,0); g.add(roof);
-    for (const [wx,wz] of [[-1.35,.9],[1.35,.9],[-1.35,-.9],[1.35,-.9]]){ const w = new THREE.Mesh(Cy(.36,.36,.25,14), tyreMat); w.rotation.x = HP; w.position.set(wx,.36,wz); g.add(w); }
-    const hl = new THREE.MeshBasicMaterial({ color:0xfff3d0 }), tl = new THREE.MeshBasicMaterial({ color:0xff2030 });
-    for (const sz of [-.6,.6]){ const h = new THREE.Mesh(Bx(.05,.14,.32), hl); h.position.set(2.1,.78,sz); g.add(h); const t = new THREE.Mesh(Bx(.05,.12,.3), tl); t.position.set(-2.1,.8,sz); g.add(t); }
-    g.rotation.y = alongZ ? HP : 0; g.position.set(x,0,z); neonG.add(g);
-    g.traverse(o => { if (o.isMesh){ o.castShadow = true; solids.push(o); } });
+    const body = carBody[ci % carBody.length];
+    kitAt(x, z, alongZ ? HP : 0, () => {
+      kitBox(4.2, .75, 1.8, body, 0, .7, 0); kitBox(2.2, .7, 1.62, carGlass, -.2, 1.4, 0); kitBox(2, .08, 1.6, body, -.2, 1.78, 0);
+      for (const [wx,wz] of [[-1.35,.9],[1.35,.9],[-1.35,-.9],[1.35,-.9]]){ const w = Cy(.36,.36,.25,14); kitAdd(w, tyreMat, wx, .36, wz, HP); w.dispose(); }
+      for (const sz of [-.6,.6]){ kitBox(.05, .14, .32, carHL, 2.1, .78, sz); kitBox(.05, .12, .3, carTL, -2.1, .8, sz); }
+    });
     boxes.push({ minX:x - (alongZ ? .9 : 2.1), maxX:x + (alongZ ? .9 : 2.1), minZ:z - (alongZ ? 2.1 : .9), maxZ:z + (alongZ ? 2.1 : .9), top:1.8 });
   }
   [[4,-20,1],[-4,12,1],[20,3,0],[-25,-3,0],[30,-15,0],[-18,20,1],[3,28,1],[-30,-30,1],[16,16,0]].forEach(([x,z,a],i) => cityCar(x,z,a,i));
@@ -174,6 +173,7 @@ function buildNeon(){
   MAPS.neon.ladders.forEach(makeLadder);
   MAPS.neon.perches = [[26,-26,4.2],[-26,-26,4.2],[26,26,4.2],[-26,26,4.2]];
   MAPS.neon.spawns = [[0,-38],[38,0],[-38,0],[34,-34],[15,-35],[34,-12],[-34,-34],[-15,-35],[-34,-12],[34,34],[34,12],[-34,34],[-34,12],[20,34],[-20,34]];
+  buildNeonExtra({ CITY, cityCar, sign });
   MAPS.neon.boxes = boxes.slice(); MAPS.neon.solids = solids.slice();
   ensureRain();
   // restore Dust Yard as the active world
@@ -197,12 +197,15 @@ function ensureRain(){
 // ---- Jungle Ruins: overgrown temple ruins in the rain, split by a river with two crossings
 const jungleG = new THREE.Group(); jungleG.visible = false; scene.add(jungleG);
 const JUNGLE_RIVER = { minZ:-3.6, maxZ:3.6 };
-const jungleVines = [];
-let jungleWater = null, thunderT = 18;
+const jungleSway = { value:0 }, JUNGLE_PLATFORMS = [];
+let jungleWater = null, jungleFall = null, thunderT = 18;
 function buildJungle(){
   if (jungleG.userData.built) return; jungleG.userData.built = true;
   worldParent = jungleG; buildMap = 'jungle'; boxes.length = 0; solids.length = 0;
-  const rnd = (a, b) => a + Math.random()*(b - a);
+  // seeded, so every player in a co-op match gets the same rocks and cover
+  let seed = 1337; const rnd = (a, b) => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t ^= t + Math.imul(t ^ t >>> 7, 61 | t); return a + (((t ^ t >>> 14) >>> 0)/4294967296)*(b - a); };
+  const SPAWNS = [[-38, -30], [-20, -40], [0, -41], [20, -41], [38, -30], [41, -10], [-41, -10], [41, 10], [-41, 12], [38, 30], [20, 41], [0, 41], [-20, 41], [-38, 30], [-30, 0], [30, 2]];
+  const nearSpawn = (x, z, r) => SPAWNS.some(p => Math.hypot(p[0] - x, p[1] - z) < r);
   // textures: mossy earth, weathered temple stone, mossy stone, bark, leaves and hanging vines
   const earthTex = canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#4a4a2c'; g.fillRect(0, 0, w, h);
@@ -232,50 +235,94 @@ function buildJungle(){
     for (const vx of [16, 34, 50]){ g.strokeStyle = '#2f4a1c'; g.lineWidth = 2; g.beginPath(); let x = vx; g.moveTo(x, 0); for (let y=0;y<=h;y+=16){ x = vx + Math.sin(y*.05 + vx)*5; g.lineTo(x, y); } g.stroke();
       for (let y=4;y<h - (vx === 34 ? 0 : 50);y+=7){ const lx = vx + Math.sin(y*.05 + vx)*5; g.fillStyle = `rgb(${40 + Math.random()*40|0},${90 + Math.random()*60|0},${30 + Math.random()*20|0})`;
         g.save(); g.translate(lx, y); g.rotate((Math.random() - .5)*2.4); g.beginPath(); g.ellipse(Math.random() < .5 ? -4 : 4, 0, 5, 2.4, 0, 0, 7); g.fill(); g.restore(); } } });
-  const stoneM = new THREE.MeshStandardMaterial({ map:stoneTex, bumpMap:stoneTex, bumpScale:.04, roughness:.92 });
-  const stoneDark = new THREE.MeshStandardMaterial({ map:stoneTex, color:0x9a9a88, roughness:.95 });
+  const stoneM = new THREE.MeshStandardMaterial({ map:stoneTex, color:0xa9ad9a, bumpMap:stoneTex, bumpScale:.04, roughness:.92 }); stoneM.userData.tile = 2.6;
+  const stoneDark = new THREE.MeshStandardMaterial({ map:stoneTex, color:0x7f8574, roughness:.95 }); stoneDark.userData.tile = 2.6;
   const barkM = new THREE.MeshStandardMaterial({ map:barkTex, roughness:.95 });
-  const leafM = new THREE.MeshStandardMaterial({ map:leafTex, alphaTest:.45, side:THREE.DoubleSide, roughness:.8 });
-  const canopyM = new THREE.MeshStandardMaterial({ color:0x35562a, roughness:.85 });
-  const vineM = new THREE.MeshStandardMaterial({ map:vineTex, alphaTest:.4, side:THREE.DoubleSide, roughness:.8 });
+  const leafM = new THREE.MeshStandardMaterial({ map:leafTex, alphaTest:.45, side:THREE.DoubleSide, roughness:.8 }); leafM.userData = { see:true, noShadow:true };
+  const canopyM = new THREE.MeshStandardMaterial({ color:0x2f4f26, roughness:.85 }); canopyM.userData = { see:true };
+  const vineM = new THREE.MeshStandardMaterial({ map:vineTex, alphaTest:.4, side:THREE.DoubleSide, roughness:.8 }); vineM.userData = { see:true, noShadow:true };
+  // vines sway in the vertex shader (they are merged into one mesh, so they can't be rotated one by one)
+  vineM.onBeforeCompile = sh => { sh.uniforms.uSway = jungleSway;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uSway;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n float k = 1.0 - uv.y; transformed.x += k*k*sin(uSway*0.9 + position.x*0.37 + position.z*0.23)*0.16; transformed.z += k*k*cos(uSway*0.8 + position.x*0.21)*0.12;'); };
+  // big tropical leaves (canopy cards) and palm fronds
+  const cardTex = canvasTex(256, 256, (g, w, h) => { g.clearRect(0, 0, w, h);
+    for (let i=0;i<16;i++){ const a = -Math.PI/2 + (Math.random() - .5)*2.7, l = 60 + Math.random()*70, bx = 128 + (Math.random() - .5)*40, by = 170 + (Math.random() - .5)*40;
+      const tx = bx + Math.cos(a)*l, ty = by + Math.sin(a)*l, nx = -Math.sin(a), ny = Math.cos(a), wd = l*(.22 + Math.random()*.1);
+      const col = `rgb(${30 + Math.random()*35|0},${78 + Math.random()*70|0},${24 + Math.random()*24|0})`;
+      g.fillStyle = col; g.beginPath(); g.moveTo(bx, by);
+      g.quadraticCurveTo(bx + Math.cos(a)*l*.5 + nx*wd, by + Math.sin(a)*l*.5 + ny*wd, tx, ty);
+      g.quadraticCurveTo(bx + Math.cos(a)*l*.5 - nx*wd, by + Math.sin(a)*l*.5 - ny*wd, bx, by); g.fill();
+      g.strokeStyle = 'rgba(200,230,150,.35)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(bx, by); g.lineTo(tx, ty); g.stroke();
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo(bx + Math.cos(a)*l*.5 - nx*wd, by + Math.sin(a)*l*.5 - ny*wd, tx, ty); g.lineTo(bx, by); g.fill(); } });
+  const cardM = new THREE.MeshStandardMaterial({ map:cardTex, alphaTest:.5, side:THREE.DoubleSide, roughness:.75 }); cardM.userData = { see:true };
+  const frondTex = canvasTex(64, 256, (g, w, h) => { g.clearRect(0, 0, w, h); g.strokeStyle = '#4a5a22'; g.lineWidth = 3; g.beginPath(); g.moveTo(32, 0); g.lineTo(32, h); g.stroke();
+    for (let y=8;y<h - 4;y+=5){ const l = 28*Math.sin((y/h)*Math.PI)*.95 + 3; g.strokeStyle = `rgb(${50 + Math.random()*30|0},${100 + Math.random()*50|0},${30 + Math.random()*15|0})`; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(32, y); g.lineTo(32 - l, y + 12); g.moveTo(32, y); g.lineTo(32 + l, y + 12); g.stroke(); } });
+  const frondM = new THREE.MeshStandardMaterial({ map:frondTex, alphaTest:.45, side:THREE.DoubleSide, roughness:.8 }); frondM.userData = { see:true };
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map:earthTex, roughness:1 }));
   ground.rotation.x = -HP; ground.receiveShadow = true; jungleG.add(ground);
-  const block = (x, z, w, d, h, mat = stoneM, y0 = 0, col = true) => addBox(x, z, w, d, h, mat, y0, col);
-  const vine = (x, y, z, ry, len, wid = 1.1) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(wid, len), vineM); m.position.set(x, y - len/2, z); m.rotation.y = ry; jungleG.add(m); jungleVines.push({ m, ph:Math.random()*6 }); return m; };
+  // blocks go into the merged kit (one draw call per material) with a collision box
+  const block = (x, z, w, d, h, mat = stoneM, y0 = 0, col = true) => { kitBox(w, h, d, mat, x, y0 + h/2, z, 0, mat.userData.tile || 0); if (col) addCollider(x, z, w, d, y0 + h); };
+  const vine = (x, y, z, ry, len, wid = 1.1) => { const g = new THREE.PlaneGeometry(wid, len); kitAdd(g, vineM, x, y - len/2, z, 0, ry); g.dispose(); };
+  const cyl = (r1, r2, h, seg, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const g = new THREE.CylinderGeometry(r1, r2, h, seg); kitAdd(g, mat, x, y, z, rx, ry, rz); g.dispose(); };
   // ---- the river: muddy banks, slow brown-green water you wade through, two stone bridges and stepping stones
   const waterTex = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#3d5040'; g.fillRect(0, 0, w, h);
     for (let i=0;i<60;i++){ g.strokeStyle = `rgba(190,210,190,${.05 + Math.random()*.12})`; g.lineWidth = 1 + Math.random()*2; g.beginPath(); const x = Math.random()*w, y = Math.random()*h; g.moveTo(x, y); g.bezierCurveTo(x + 20, y + 4, x + 40, y - 4, x + 60, y); g.stroke(); } }, [8, 1]);
   jungleWater = new THREE.Mesh(new THREE.PlaneGeometry(92, JUNGLE_RIVER.maxZ - JUNGLE_RIVER.minZ), new THREE.MeshStandardMaterial({ map:waterTex, color:0x587466, roughness:.14, metalness:.15, transparent:true, opacity:.92, envMapIntensity:.7 }));
   jungleWater.rotation.x = -HP; jungleWater.position.set(0, .06, 0); jungleWater.receiveShadow = true; jungleG.add(jungleWater);
-  const mudM = new THREE.MeshStandardMaterial({ color:0x3e3524, roughness:.6, metalness:.05 });
-  for (const s of [-1, 1]){ const b = new THREE.Mesh(new THREE.PlaneGeometry(92, 1.6), mudM); b.rotation.x = -HP; b.position.set(0, .03, s*(JUNGLE_RIVER.maxZ + .5)); jungleG.add(b); }
+  const mudM = new THREE.MeshStandardMaterial({ color:0x3e3524, roughness:.6, metalness:.05 }); mudM.userData = { see:true, noShadow:true };
+  for (const s of [-1, 1]){ const b = new THREE.PlaneGeometry(92, 1.6); kitAdd(b, mudM, 0, .03, s*(JUNGLE_RIVER.maxZ + .5), -HP); b.dispose(); }
   for (const bx of [-21, 19]){
     block(bx, 0, 4, 9.4, .5, stoneM);
     for (const sx of [-1.85, 1.85]){ block(bx + sx, -2.6, .3, 2.2, 1.1, stoneDark, .5); block(bx + sx, 2.6, .3, 2.2, 1.1, stoneDark, .5); }
     for (const sz of [-4.9, 4.9]) block(bx, sz, 4, .8, .25, stoneM);
   }
-  for (const [x, z] of [[-2, -2.2], [-.6, -.4], [.8, 1.3], [2.2, 2.9]]){ const m = new THREE.Mesh(new THREE.CylinderGeometry(.6, .75, .45, 9), stoneDark); m.position.set(x, .22, z); m.castShadow = m.receiveShadow = true; jungleG.add(m); solids.push(m); boxes.push({ minX:x - .55, maxX:x + .55, minZ:z - .55, maxZ:z + .55, top:.45 }); }
-  for (let i=0;i<14;i++){ const x = rnd(-40, 40), z = (Math.random() < .5 ? -1 : 1)*rnd(3.9, 5), r = rnd(.4, 1.1), m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), stoneDark);
-    m.position.set(x, r*.35, z); m.rotation.set(Math.random()*3, Math.random()*3, 0); m.castShadow = true; jungleG.add(m); }
-  // ---- the step pyramid north of the river, with stairs up the south face and a shrine on top (a sniper perch)
-  const PZ = -25;
-  block(0, PZ, 18, 16, 1.2); block(0, PZ - .5, 13, 11, 1.2, stoneM, 1.2); block(0, PZ - 1, 8, 6, 1.2, stoneM, 2.4);
-  for (let i=0;i<11;i++) block(0, PZ + 11.5 - i*.92, 3.6, .92, .33*(i + 1), stoneDark);
-  block(-1.5, PZ - 2.2, .5, .5, 2.2, stoneDark, 3.6); block(1.5, PZ - 2.2, .5, .5, 2.2, stoneDark, 3.6); block(0, PZ - 2.2, 3.6, .7, .45, stoneM, 5.8, false);
-  for (const [x, z] of [[-8.6, PZ + 7.6], [8.6, PZ + 7.6], [-6.3, PZ + 5], [6.3, PZ + 5]]) vine(x, x < 0 ? 2.4 : 2.4, z + .02, 0, rnd(1.8, 2.4), 1.4);
-  for (const sx of [-1, 1]) vine(sx*9.02, 1.2, PZ, sx*HP, 1.2, 3);
+  for (const [x, z] of [[-2, -2.2], [-.6, -.4], [.8, 1.3], [2.2, 2.9]]){ cyl(.6, .75, .45, 9, stoneDark, x, .22, z); addCollider(x, z, 1.1, 1.1, .45); }
+  const mossyRock = (x, z, r, col) => { const g = new THREE.DodecahedronGeometry(r, 1), a = g.attributes.position;
+    for (let k=0;k<a.count;k++){ const n = 1 + (Math.sin(a.getX(k)*3.1 + x) + Math.cos(a.getZ(k)*2.7 + z))*.07; a.setXYZ(k, a.getX(k)*n, a.getY(k)*n*.75, a.getZ(k)*n); }
+    kitAdd(g, stoneDark, x, r*.3, z, 0, Math.random()*3); g.dispose(); if (col) addCollider(x, z, r*1.5, r*1.5, r*.95); };
+  for (let i=0;i<14;i++) mossyRock(rnd(-40, 40), (Math.random() < .5 ? -1 : 1)*rnd(3.9, 5), rnd(.4, 1.1), false);
+  // ---- the step pyramid north of the river: stairs up the south face, a shrine on top (a sniper perch),
+  //      and a tunnel straight through it east to west
+  const PZ = -25, TZ0 = -30.5, TZ1 = -27.5, T1 = 1.4, T2 = 2.9, T3 = 4.4;
+  block(0, (-33 + TZ0)/2, 18, TZ0 + 33, T1); block(0, (TZ1 - 17)/2, 18, -17 - TZ1, T1);
+  block(0, (-31 + TZ0)/2, 13, TZ0 + 31, T2 - T1, stoneM, T1, false); block(0, (TZ1 - 20)/2, 13, -20 - TZ1, T2 - T1, stoneM, T1, false);
+  addCollider(0, (-31 + TZ0)/2, 13, TZ0 + 31, T2); addCollider(0, (TZ1 - 20)/2, 13, -20 - TZ1, T2);
+  block(0, (TZ1 - 23)/2, 8, -23 - TZ1, T3 - T2, stoneM, T2, false); addCollider(0, (TZ1 - 23)/2, 8, -23 - TZ1, T3);
+  block(0, (TZ0 + TZ1)/2, 13, TZ1 - TZ0, T2 - 2.6, stoneDark, 2.6, false);                 // the tunnel roof
+  JUNGLE_PLATFORMS.push({ minX:-6.5, maxX:6.5, minZ:TZ0, maxZ:TZ1, top:T2 });
+  for (const sx of [-1, 1]){ block(sx*6.6, TZ0 - .2, .5, .4, 2.6, stoneDark, 0, false); block(sx*6.6, TZ1 + .2, .5, .4, 2.6, stoneDark, 0, false); }   // carved door posts
+  for (let i=0;i<13;i++) block(0, -23.04 + (12 - i)*.92, 3.6, .92, .34*(i + 1), stoneDark);
+  block(-1.5, PZ - 1.5, .5, .5, 2.2, stoneDark, T3); block(1.5, PZ - 1.5, .5, .5, 2.2, stoneDark, T3); block(0, PZ - 1.5, 3.6, .7, .45, stoneM, T3 + 2.2, false);
+  for (const [x, z] of [[-8.6, -17.4], [8.6, -17.4], [-6.3, -20], [6.3, -20]]) vine(x, Math.abs(x) > 8 ? T1 : T2, z + .02, 0, rnd(1.2, 2.2), 1.4);
+  for (const sx of [-1, 1]) vine(sx*9.02, T1, PZ + 4, sx*HP, 1.2, 3);
+  // ---- a carved stone arch framing the pyramid stairs
+  block(-2.7, -9.6, 1.1, 1.1, 4.6, stoneM); block(2.7, -9.6, 1.1, 1.1, 4.6, stoneM);
+  block(0, -9.6, 6.6, 1.2, .9, stoneM, 4.6, false); block(0, -9.6, 7.2, 1.3, .25, stoneDark, 5.5, false);
+  vine(-1.4, 5.5, -8.98, 0, 2.6, 1.8); vine(2.2, 5.5, -10.22, Math.PI, 1.6, 1.2);
+  // ---- giant stone heads, half sunk in the earth: good, solid cover out in the open
+  const eyeM = new THREE.MeshStandardMaterial({ color:0x2a2a22, roughness:1 }); eyeM.userData = { see:true };
+  const head = (x, z) => { const ry = Math.atan2(-x, -z) + rnd(-.3, .3);
+    kitAt(x, z, ry, () => {
+      const s = new THREE.SphereGeometry(1, 18, 14); kitAdd(s, stoneM, 0, 1.25, 0, rnd(-.08, .08), 0, rnd(-.08, .08), 1.2, 1.4, 1.05); s.dispose();
+      const band = new THREE.CylinderGeometry(1.24, 1.26, .45, 18, 1, true); kitAdd(band, stoneDark, 0, 2.05, 0, 0, 0, 0, 1, 1, .9); band.dispose();
+      kitBox(1.7, .26, .45, stoneDark, 0, 1.72, .86); for (const sx of [-.42, .42]){ const e = new THREE.SphereGeometry(.2, 10, 8); kitAdd(e, eyeM, sx, 1.5, .93, 0, 0, 0, 1.1, .6, .5); e.dispose(); }
+      kitBox(.42, .55, .4, stoneM, 0, 1.18, 1.0, 0, 0, -.25); kitBox(.95, .24, .3, stoneDark, 0, .78, .94); for (const sx of [-1.18, 1.18]) kitBox(.25, .6, .4, stoneM, sx, 1.3, .05);
+    }, -.15);
+    addCollider(x, z, 2.5, 2.5, 2.6); };
+  head(-21, -30); head(25, -32); head(20, 26);
   // ---- the old hall south of the river: broken walls, a doorway, fallen columns, a collapsed roof corner
   const HZ = 25;
   block(-9, HZ + 7, 8, 1, 4.2); block(9, HZ + 7, 8, 1, 4.2); block(0, HZ + 7, 10, 1, .8, stoneM, 3.4, false);
   block(-12.5, HZ, 1, 13, 3.6); block(12.5, HZ + 2, 1, 9, 2.6); block(-6, HZ - 6.5, 6, 1, 2.2); block(7, HZ - 6.5, 4, 1, 3.2);
   block(-9, HZ + 3, 7, 6, .25, stoneDark, 3.6, false);
   for (const [x, z, h] of [[-4, HZ - 2, 3.4], [4, HZ - 2, 1.6], [-4, HZ + 3, 2.4], [4, HZ + 3, 3.4]]){
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(.55, .62, h, 14), stoneM); c.position.set(x, h/2, z); c.castShadow = c.receiveShadow = true; jungleG.add(c); solids.push(c);
-    boxes.push({ minX:x - .6, maxX:x + .6, minZ:z - .6, maxZ:z + .6, top:h });
+    cyl(.55, .62, h, 14, stoneM, x, h/2, z); addCollider(x, z, 1.2, 1.2, h);
     if (h > 3) vine(x + .63, h, z, HP, h*.7, .9);
   }
-  for (const [x, z, ry] of [[1, HZ + 1, .4], [-17, -12, 1.2], [16, -14, -.3]]){ const c = new THREE.Mesh(new THREE.CylinderGeometry(.55, .55, 5, 14), stoneM); c.rotation.set(0, ry, HP); c.position.set(x, .55, z); c.castShadow = c.receiveShadow = true; jungleG.add(c); solids.push(c);
-    const dx = Math.abs(Math.cos(ry))*2.5 + .5, dz = Math.abs(Math.sin(ry))*2.5 + .5; boxes.push({ minX:x - dx, maxX:x + dx, minZ:z - dz, maxZ:z + dz, top:1.1 }); }
+  for (const [x, z, ry] of [[1, HZ + 1, .4], [-17, -12, 1.2], [16, -14, -.3]]){ cyl(.55, .55, 5, 14, stoneM, x, .55, z, 0, ry, HP);
+    const dx = Math.abs(Math.cos(ry))*2.5 + .5, dz = Math.abs(Math.sin(ry))*2.5 + .5; addCollider(x, z, dx*2, dz*2, 1.1); }
   vine(-9, 4.2, HZ + 6.48, 0, 3, 2.2); vine(9, 4.2, HZ + 6.48, 0, 2.4, 2.6); vine(-11.98, 3.6, HZ - 3, HP, 2.6, 2);
   // ---- watchtowers in two corners with ladders (sniper perches), and scattered ruin walls for cover
   for (const [x, z, s] of [[-32, -32, 1], [32, 32, -1]]){
@@ -286,31 +333,71 @@ function buildJungle(){
   for (const [x, z, w, d, h] of [[-26, -12, 6, 1, 1.6], [-30, 14, 1, 7, 2.4], [26, -14, 1, 6, 2.2], [30, 10, 7, 1, 1.4], [-18, 16, 4, 1, 1.3], [17, 15, 5, 1, 2.8],
     [-34, -20, 1, 5, 3.2], [35, -24, 6, 1, 1.5], [-6, -12, 5, 1, 1.2], [8, -11, 1, 4, 1.6], [-24, 34, 6, 1, 2], [22, 36, 1, 5, 1.3], [-38, 2, 3, 1, 1.2], [38, -6, 1, 4, 2.6]]){
     block(x, z, w, d, h);
+    for (let k=0;k<Math.round(Math.max(w, d)/2);k++) block(x + (d > w ? 0 : rnd(-w/2 + .4, w/2 - .4)), z + (d > w ? rnd(-d/2 + .4, d/2 - .4) : 0), rnd(.4, .8), rnd(.4, .8), rnd(.2, .45), stoneDark, h, false);
     if (h > 2) vine(x + (d > w ? w/2 + .02 : 0), h, z + (d > w ? 0 : d/2 + .02), d > w ? HP : 0, h*.7, Math.min(2.4, Math.max(w, d)*.5));
   }
-  // ---- jungle trees: big buttressed trunks with layered leafy canopies and hanging vines
+  // ---- jungle trees: buttressed trunks under layered crowns of big leaves, with vines hanging down
   const tree = (x, z, s = 1) => {
-    const h = 7*s, t = new THREE.Mesh(new THREE.CylinderGeometry(.35*s, .6*s, h, 10), barkM); t.position.set(x, h/2, z); t.castShadow = true; jungleG.add(t); solids.push(t);
-    for (let i=0;i<4;i++){ const a = i/4*Math.PI*2 + Math.random(), r = new THREE.Mesh(Bx(.18*s, 1.1*s, 1.2*s), barkM); r.position.set(x + Math.sin(a)*.6*s, .5*s, z + Math.cos(a)*.6*s); r.rotation.y = a; r.castShadow = true; jungleG.add(r); }
-    boxes.push({ minX:x - .7*s, maxX:x + .7*s, minZ:z - .7*s, maxZ:z + .7*s, top:h });
-    for (let i=0;i<4;i++){ const cr = (2.6 - i*.35)*s, c = new THREE.Mesh(new THREE.SphereGeometry(cr, 10, 8), i % 2 ? canopyM : leafM); c.position.set(x + rnd(-1, 1)*s, h - .4 + i*.7*s, z + rnd(-1, 1)*s); c.scale.y = .55; c.castShadow = true; jungleG.add(c); }
-    for (let i=0;i<3;i++){ const a = Math.random()*6, r = rnd(1, 2.2)*s; vine(x + Math.sin(a)*r, h - .3, z + Math.cos(a)*r, Math.random()*3, rnd(2.5, 4.5)*s, .8); }
+    const h = 7*s, lean = rnd(-.06, .06);
+    cyl(.32*s, .6*s, h, 10, barkM, x, h/2, z, lean, 0, lean); addCollider(x, z, 1.4*s, 1.4*s, h);
+    for (let i=0;i<5;i++){ const a = i/5*Math.PI*2 + Math.random(); kitAt(x + Math.sin(a)*.55*s, z + Math.cos(a)*.55*s, a, () => kitBox(.16*s, 1.4*s, 1.3*s, barkM, 0, .55*s, .25*s, 0, 0, -.35)); }
+    for (let i=0;i<3;i++){ const a = Math.random()*6.3, len = rnd(1.6, 2.6)*s; kitBar(x, h*rnd(.7, .9), z, x + Math.sin(a)*len, h*rnd(.92, 1.05), z + Math.cos(a)*len, .1*s, barkM, 5); }
+    const cy = h + .8*s, R = 4.3*s;
+    const blob = new THREE.SphereGeometry(R*.7, 12, 8); kitAdd(blob, canopyM, x, cy + .2*s, z, 0, 0, 0, 1, .42, 1); blob.dispose();
+    const card = new THREE.PlaneGeometry(3.6*s, 3.6*s); card.translate(0, 1.1*s, 0);
+    for (let i=0;i<30;i++){ const a = Math.random()*Math.PI*2, r = R*Math.sqrt(Math.random())*.9, y = cy + rnd(-.7, 1.3)*s;
+      kitAt(x + Math.cos(a)*r, z + Math.sin(a)*r, -a + HP + rnd(-.5, .5), () => kitAdd(card, cardM, 0, 0, 0, rnd(.5, 1.25)), y - .6*s); }
+    card.dispose();
+    for (let i=0;i<3;i++){ const a = Math.random()*6, r = rnd(1, 2.2)*s; vine(x + Math.sin(a)*r, h - .1, z + Math.cos(a)*r, Math.random()*3, rnd(2.5, 4.5)*s, .8); }
   };
   [[-40, -40, 1.3], [-24, -38, 1.1], [-8, -40, 1.2], [10, -39, 1.3], [26, -40, 1.1], [40, -38, 1.2], [-40, -22, 1.2], [40, -18, 1.3], [-40, 22, 1.2], [41, 20, 1.1], [-38, 40, 1.3], [-10, 40, 1.2], [8, 41, 1.1], [40, 40, 1.3],
    [-15, -20, .9], [17, -24, 1], [-24, 8, .9], [26, 22, 1], [-28, 26, .85], [31, -6, .9], [-11, 12, .8], [12, 9, .85]].forEach(([x, z, s]) => tree(x, z, s));
+  // palms leaning over the river banks
+  const frondGeo = new THREE.PlaneGeometry(1.2, 4.4, 1, 8), fa = frondGeo.attributes.position;
+  for (let k=0;k<fa.count;k++){ const t = fa.getY(k)/4.4 + .5; fa.setXYZ(k, fa.getX(k)*(.4 + Math.sin(t*Math.PI)*.8), .9*t - 2.2*t*t, t*4.2); }
+  const palm = (x, z, lx, lz) => {
+    const H = rnd(7, 9); let px = x, pz = z, py = 0;
+    for (let k=0;k<6;k++){ const t = (k + 1)/6, nx = x + lx*t*t*2.6, nz = z + lz*t*t*2.6, ny = H*t; kitBar(px, py, pz, nx, ny + .05, nz, .26 - k*.025, barkM, 7); px = nx; pz = nz; py = ny; }
+    for (let i=0;i<9;i++){ const a = i/9*Math.PI*2 + rnd(-.2, .2); kitAt(px, pz, a, () => kitAdd(frondGeo, frondM, 0, 0, 0, rnd(-.25, .2)), py); }
+    addCollider(x, z, .7, .7, 3);
+  };
+  for (const [x, z, lx, lz] of [[-36, -6, .2, .6], [-9, 6.4, -.3, -.6], [6, -6.6, .3, .6], [35.5, 6.2, -.2, -.6], [-25, -5.8, -.3, .5]]) if (freeSpot(x, z, .8) && !nearSpawn(x, z, 2.5)) palm(x, z, lx, lz);
+  frondGeo.dispose();
   // ferns and bushes (soft cover you can see through a little)
   const fernGeo = new THREE.PlaneGeometry(1.6, 1.1); fernGeo.translate(0, .55, 0);
-  for (let i=0;i<70;i++){ const x = rnd(-42, 42), z = rnd(-42, 42); if (Math.abs(z) < 4.5 || !freeSpot(x, z, 1.2)) continue;
-    const g = new THREE.Group(); g.position.set(x, 0, z); for (let k=0;k<3;k++){ const f = new THREE.Mesh(fernGeo, leafM); f.rotation.y = k/3*Math.PI + Math.random(); f.rotation.x = rnd(-.2, .2); g.add(f); } g.scale.setScalar(rnd(.8, 1.5)); jungleG.add(g); }
+  for (let i=0;i<80;i++){ const x = rnd(-42, 42), z = rnd(-42, 42); if (Math.abs(z) < 4.5 || !freeSpot(x, z, 1.2)) continue;
+    const sc = rnd(.8, 1.5); for (let k=0;k<3;k++) kitAdd(fernGeo, Math.random() < .5 ? leafM : cardM, x, 0, z, rnd(-.2, .2), k/3*Math.PI + Math.random(), 0, sc, sc, sc); }
+  fernGeo.dispose();
+  for (let i=0;i<16;i++){ const x = rnd(-40, 40), z = rnd(-40, 40), r = rnd(.5, 1.3); if (Math.abs(z) < 5 || !freeSpot(x, z, r + 1) || nearSpawn(x, z, 3)) continue; mossyRock(x, z, r, r > .8); }
+  // ---- mist over the river
+  const mistTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(230,240,230,.55)'); gr.addColorStop(1, 'rgba(230,240,230,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  const mistM = new THREE.MeshBasicMaterial({ map:mistTex, transparent:true, opacity:.35, depthWrite:false }); mistM.userData = { see:true, noShadow:true };
+  for (let x=-42;x<=42;x+=7){ const p = new THREE.PlaneGeometry(rnd(9, 13), rnd(4, 6)); kitAdd(p, mistM, x + rnd(-2, 2), .55 + rnd(0, .3), rnd(-1.5, 1.5), -HP, 0, rnd(0, 3)); p.dispose(); }
+  // ---- a waterfall pours into the river at the west wall; the river leaves through a culvert in the east wall
+  for (const [z0, z1, h] of [[-26, -2.8, 15], [2.8, 26, 14]]) block(-48, (z0 + z1)/2, 5, z1 - z0, h, stoneDark, 0, false);
+  block(-48, 0, 5, 5.6, 2.4, stoneDark, 13.4, false);
+  for (let i=0;i<10;i++){ const z = rnd(-14, 14); if (Math.abs(z) > 3.5) mossyRock(-46.3, z, rnd(1, 2), true); }
+  const fallTex = canvasTex(64, 256, (g, w, h) => { g.fillStyle = '#5d7a70'; g.fillRect(0, 0, w, h);
+    for (let i=0;i<50;i++){ g.fillStyle = `rgba(20,40,34,${.2 + Math.random()*.3})`; g.fillRect(Math.random()*w, Math.random()*h, 2 + Math.random()*4, 30 + Math.random()*80); }
+    for (let i=0;i<80;i++){ g.fillStyle = `rgba(235,245,240,${.15 + Math.random()*.45})`; g.fillRect(Math.random()*w, Math.random()*h, 1 + Math.random()*2, 20 + Math.random()*60); } });
+  fallTex.repeat.set(2, 3);
+  const fallM = new THREE.MeshStandardMaterial({ map:fallTex, color:0xb8c8c0, transparent:true, opacity:.82, roughness:.25, side:THREE.DoubleSide });
+  jungleFall = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 13.4), fallM); jungleFall.position.set(-44.92, 6.7, 0); jungleFall.rotation.y = HP; jungleG.add(jungleFall);
+  plume(-44.2, .2, 0, 1.8, 2.6, 12, 0xcfdad4, .16, jungleG);
+  const culvM = new THREE.MeshBasicMaterial({ color:0x050605 }); culvM.userData = { see:true, noShadow:true };
+  const cg = new THREE.CircleGeometry(3.4, 20, 0, Math.PI); kitAdd(cg, culvM, 44.96, 0, 0, 0, -HP); cg.dispose();
+  for (let i=0;i<=10;i++){ const a = i/10*Math.PI; kitAt(44.9, Math.cos(a)*3.8, -HP, () => kitBox(.9, .6, .6, stoneM, 0, 0, 0, 0, 0, 0, a - HP), Math.sin(a)*3.8); }
   // perimeter: overgrown temple walls with vines, too high to climb
   for (const [x, z, w, d] of [[0, -ARENA - .5, ARENA*2 + 2, 1], [0, ARENA + .5, ARENA*2 + 2, 1], [-ARENA - .5, 0, 1, ARENA*2 + 2], [ARENA + .5, 0, 1, ARENA*2 + 2]]){
-    addBox(x, z, w, d, 4.5, stoneDark, 0, false);
-    for (let i=0;i<12;i++){ const t = (i + .5)/12 - .5, along = d > w; vine(along ? x - Math.sign(x)*.52 : x + t*w, 4.5, along ? z + t*d : z - Math.sign(z)*.52, along ? HP : 0, rnd(1.5, 3.8), rnd(1.5, 3)); }
+    kitBox(w, 4.5, d, stoneDark, x, 2.25, z, 0, 2.6);
+    for (let i=0;i<12;i++){ const t = (i + .5)/12 - .5, along = d > w; if (along && Math.abs(t*d) < 4) continue; vine(along ? x - Math.sign(x)*.52 : x + t*w, 4.5, along ? z + t*d : z - Math.sign(z)*.52, along ? HP : 0, rnd(1.5, 3.8), rnd(1.5, 3)); }
   }
   MAPS.jungle.ladders = [ { x:-29.5, z:-32, nx:1, nz:0, top:4.2 }, { x:29.5, z:32, nx:-1, nz:0, top:4.2 } ];
   MAPS.jungle.ladders.forEach(makeLadder);
-  MAPS.jungle.perches = [[-32, -32, 4.2], [32, 32, 4.2], [0, PZ - .5, 3.6], [-9, HZ + 3, 3.85]];
-  MAPS.jungle.spawns = [[-38, -30], [-20, -44 + 4], [0, -41], [20, -41], [38, -30], [41, -10], [-41, -10], [41, 10], [-41, 12], [38, 30], [20, 41], [0, 41], [-20, 41], [-38, 30], [-30, 0], [30, 2]];
+  MAPS.jungle.platforms = JUNGLE_PLATFORMS;
+  MAPS.jungle.perches = [[-32, -32, 4.2], [32, 32, 4.2], [0, PZ, T3], [-9, HZ + 3, 3.85]];
+  MAPS.jungle.spawns = SPAWNS;
+  kitFlush(jungleG);
   MAPS.jungle.boxes = boxes.slice(); MAPS.jungle.solids = solids.slice();
   // restore Dust Yard as the active world
   worldParent = scene; buildMap = 'yard';
@@ -320,8 +407,9 @@ const inRiver = p => currentMap === 'jungle' && p.z > JUNGLE_RIVER.minZ && p.z <
 // a lightning flash and a roll of thunder now and then
 function updateJungleFx(dt, t){
   if (!jungleG.visible) return;
-  for (const v of jungleVines) v.m.rotation.z = Math.sin(t*.9 + v.ph)*.04;
+  jungleSway.value = t;
   if (jungleWater) jungleWater.material.map.offset.x = (t*.03) % 1;
+  if (jungleFall) jungleFall.material.map.offset.y = (t*1.1) % 1;
   if (state !== 'play') return;
   thunderT -= dt;
   if (thunderT <= 0){ thunderT = 22 + Math.random()*25; boomLight.color.setHex(0xcfe0ff); boomLight.position.set(camera.position.x + 20, 30, camera.position.z - 20); boomLight.intensity = 3;
@@ -450,6 +538,9 @@ function setMap(name){
 function updateMapFx(dt, t){
   updateJungleFx(dt, t);
   if (rain && rain.visible){
+    // no rain inside the jungle pyramid's tunnel
+    const cp = camera.position, covered = currentMap === 'jungle' && Math.abs(cp.x) < 6.5 && cp.z > -30.5 && cp.z < -27.5 && cp.y < 2.6;
+    rain.material.opacity = covered ? 0 : currentMap === 'jungle' ? .3 : .35; rain.userData.splash.material.opacity = covered ? 0 : .28;
     const { base, pos, rg } = rain.userData, cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     const wrap = (v, c, span) => c - span/2 + ((((v - (c - span/2)) % span) + span) % span);
     for (let i=0;i<base.length;i++){
@@ -467,6 +558,7 @@ function updateMapFx(dt, t){
       sp.instanceMatrix.needsUpdate = true;
     }
   }
+  if (neonG.visible) updateNeonExtra(dt, t);
   if (neonG.visible) for (const s of neonSigns){
     if (!s.flick) continue;
     const k = Math.sin(t*1.7 + s.ph) > .93 ? (Math.random() < .5 ? .15 : 1) : 1;
