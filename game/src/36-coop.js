@@ -69,7 +69,7 @@ function coopSend(force){
   if (!coop || !coop.r) return;
   const W = cur(), pr = { name:coopName(), col:myColor, op:opMine(), pet:coopPetInfo(), host:coop.host ? 1 : 0,
     x:+P.pos.x.toFixed(2), y:+P.pos.y.toFixed(2), z:+P.pos.z.toFixed(2), yaw:+P.yaw.toFixed(2), pt:+P.pitch.toFixed(2),
-    cr:P.slideT > 0 ? 2 : P.crouch ? 1 : 0, sp:P.sprinting ? 1 : 0, jt:jet.on ? 1 : 0, w:W ? W.id : 'rifle', sh:coop.shots || 0, hp:Math.round(P.hp), dn:P.dead ? 2 : P.down ? 1 : 0,
+    cr:P.slideT > 0 ? 2 : P.crouch ? 1 : 0, sp:P.sprinting ? 1 : 0, jt:jet.on ? 1 : 0, roar:spec.roarN, hw:spec.howlT > 0 ? 1 : 0, w:W ? W.id : 'rifle', sh:coop.shots || 0, hp:Math.round(P.hp), dn:P.dead ? 2 : P.down ? 1 : 0,
     rev:coop.revPeer ? [coop.revPeer, +coop.revT.toFixed(2)] : null, sc:score, k:kills };
   if (coop.guest){ const d = []; for (const [nid, v] of coop.dmg){ const e = coop.ens.get(nid); if (e && e.alive !== undefined) d.push([nid, Math.round(v)]); if (d.length >= 24) break; } pr.dmg = d; }
   if (coop.host){
@@ -269,7 +269,7 @@ function coopTick(dt){
   // team wiped?
   if (coop.host && (P.down || P.dead) && coopAliveMates() === 0){ coop.wipeT = (coop.wipeT || 0) + dt; if (coop.wipeT > 1.5){ coop.wipeT = 0; coopEnd(); return; } } else coop.wipeT = 0;
   // teammates
-  for (const m of coop.mates.values()) coopDrawMate(m, dt);
+  for (const m of coop.mates.values()){ coopDrawMate(m, dt); specialFromMate(m); }
   coop.sendT -= dt; if (coop.sendT <= 0){ coop.sendT = .1; coopSend(); }
 }
 function coopDrawMate(m, dt){

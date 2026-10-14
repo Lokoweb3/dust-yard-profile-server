@@ -347,6 +347,7 @@ body.tdm #waveInfo, body.tdm #bossBar{ display:none !important; }
 #tAim.on{ background:rgba(240,169,59,.5) !important; }
 #tReload{ width:60px; height:60px; right:calc(136px + env(safe-area-inset-right,0px)); bottom:calc(84px + env(safe-area-inset-bottom,0px)); }
 #tJump{ width:60px; height:60px; right:calc(44px + env(safe-area-inset-right,0px)); bottom:calc(220px + env(safe-area-inset-bottom,0px)); }
+#tSpecial{ width:56px; height:56px; right:calc(176px + env(safe-area-inset-right,0px)); bottom:calc(240px + env(safe-area-inset-bottom,0px)); font-size:13px !important; }
 #tGear{ width:56px; height:56px; right:calc(112px + env(safe-area-inset-right,0px)); bottom:calc(240px + env(safe-area-inset-bottom,0px)); }
 #tCrouch{ width:60px; height:60px; right:calc(222px + env(safe-area-inset-right,0px)); bottom:calc(120px + env(safe-area-inset-bottom,0px)); }
 #tCrouch.on{ background:rgba(240,169,59,.5) !important; }

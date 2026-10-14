@@ -16,7 +16,7 @@ function useStreak(k){
   if ((k === 'air' || k === 'stampede') && airAim && aimKind === k){ airAim = false; airMark.visible = false; return; }
   if (!sInv[k]) return;
   if (predator) return;
-  if (k === 'uav'){ sInv.uav--; uavT = 30; sfx.radio(); feed('UAV online'); }
+  if (k === 'uav'){ sInv.uav--; uavT = headGear() === 'antenna' ? 45 : 30; sfx.radio(); feed('UAV online'); }
   else if (k === 'care'){ sInv.care--; dropCarePackage(); }
   else if (k === 'predator'){ sInv.predator--; launchPredator(); }
   else if (k === 'pounce'){ if (pounce) return; sInv.pounce--; usePounce(); }

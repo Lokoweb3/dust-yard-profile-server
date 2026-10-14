@@ -357,7 +357,7 @@ function updateEnemy(e, dt){
   e.losT -= dt;
   if (e.losT <= 0){
     e.losT = 0.15 + Math.random()*0.1;
-    const fox = spPower() === 'fox' && !e.sees, see = dist < (e.type === 'sniper' ? 95 : 60)*(fox ? .62 : 1) && lineOfSight(new V3(e.pos.x, (e.y || 0) + 1.65 - e.cf*.36, e.pos.z), new V3(P.pos.x, P.pos.y + camH - .1, P.pos.z));
+    const fox = spPower() === 'fox' && !e.sees, hidden = specOn('fox') && !coopSwap && dist > 2.5, see = !hidden && dist < (e.type === 'sniper' ? 95 : 60)*(fox ? .62 : 1) && lineOfSight(new V3(e.pos.x, (e.y || 0) + 1.65 - e.cf*.36, e.pos.z), new V3(P.pos.x, P.pos.y + camH - .1, P.pos.z));
     if (see && !e.sees) e.reaction = Math.max(0.2, 0.6 - wave*0.03) + (fox ? .3 : 0);
     e.sees = see;
     if (!see) e.crouching = false;

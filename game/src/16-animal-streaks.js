@@ -399,7 +399,7 @@ function updateCombat(dt){
     const s = smokes[i]; s.t += dt;
     const k = Math.min(1, s.t/1.2), fade = s.t > s.life - 3 ? Math.max(0, (s.life - s.t)/3) : 1;
     s.sprites.forEach((sp,j) => {
-      sp.material.opacity = .92*k*fade; sp.scale.setScalar(sp.userData.sc*(.4 + .6*k));
+      sp.material.opacity = .92*k*fade*(headGear() === 'nvg' ? .3 : 1); sp.scale.setScalar(sp.userData.sc*(.4 + .6*k));
       sp.position.set(s.c.x + sp.userData.o.x*k + Math.sin(s.t*.3 + j)*.3, s.c.y + .8 + sp.userData.o.y*k + s.t*.04, s.c.z + sp.userData.o.z*k);
     });
     if (s.t > s.life){ s.sprites.forEach(sp => { scene.remove(sp); sp.material.dispose(); }); smokes.splice(i,1); }

@@ -56,6 +56,7 @@ addEventListener('keydown', e => {
     const si = { Digit7:0, Digit8:1, Digit9:2 }[e.code]; if (si !== undefined && STREAKS[si]) useStreak(STREAKS[si].k);
     if (e.code === 'KeyB' && !e.repeat) toggleView();
     if (e.code === 'KeyF' && !e.repeat && !useGear() && !reloading && swapT === 0 && actionT <= 0) inspectT = 2.6;
+    if (e.code === 'KeyE' && !e.repeat && $('coopPrompt').hidden) useSpecial();   // E: animal special (E is still revive when a teammate is down nearby)
     if (e.code === 'KeyC' && !e.repeat) crouchPress();
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
     if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
@@ -111,6 +112,8 @@ tbtn('tAim', () => { ads = !ads; $('tAim').classList.toggle('on', ads); });
 tbtn('tReload', () => reload());
 tbtn('tJump', () => { touch.jump = true; });
 tbtn('tGear', () => { useGear(); });
+tbtn('tSpecial', () => { useSpecial(); });
+spec.touch = $('tSpecial');
 gearAb.touch = $('tGear');
 // the touch Jump button can be held too (jetpack)
 $('tJump').addEventListener('pointerdown', () => { touch.jumpHeld = true; });
@@ -336,7 +339,7 @@ function pollPad(dt){
     if (pressed(11)) startMelee();                                      // R3 melee
     if (pressed(5)) startNade('frag'); if (released(5)) releaseNade();  // R1 frag
     if (pressed(4)) startNade('tac'); if (released(4)) releaseNade();   // L1 tactical
-    if (pressed(14)) tacType = tacType === 'smoke' ? 'flash' : 'smoke'; // D-pad left
+    if (pressed(14) && !useSpecial()) tacType = tacType === 'smoke' ? 'flash' : 'smoke'; // D-pad left: animal special (switches tactical otherwise)
     if (coop) coop.padRev = held(2);
     if (pressed(2)){ if (hubMode){ if (!$('hubPrompt').hidden) openMarket(); } else reload(); } // Square reload / open market
     if (pressed(10)) padSprint = true;                                  // L3 sprint

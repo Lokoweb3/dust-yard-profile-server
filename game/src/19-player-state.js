@@ -30,7 +30,7 @@ function updateGearAb(dt){
   } else if (gearAb.cd > 0){ gearAb.cd = Math.max(0, gearAb.cd - dt); if (!gearAb.cd) feed(`${GEAR_AB[gearAb.k].name} ready`, true); }
   // HUD: what the ability is doing, and a bar for the time left or the recharge
   const d = GEAR_AB[backGear()];
-  if (!gearAb.hud){ gearAb.hud = document.createElement('div'); gearAb.hud.style.cssText = 'position:absolute;left:50%;top:104px;width:220px;margin-left:-110px;text-align:center;pointer-events:none;font:700 15px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:#f4ecdc;text-shadow:0 1px 3px #000';
+  if (!gearAb.hud){ gearAb.hud = document.createElement('div'); gearAb.hud.style.cssText = 'position:absolute;left:22px;bottom:calc(218px + env(safe-area-inset-bottom,0px));width:210px;text-align:left;pointer-events:none;font:700 15px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:#f4ecdc;text-shadow:0 1px 3px #000';
     gearAb.txt = document.createElement('div'); const bg = document.createElement('div'); bg.style.cssText = 'height:6px;margin-top:3px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden';
     gearAb.bar = document.createElement('div'); gearAb.bar.style.cssText = 'height:100%;width:0'; bg.appendChild(gearAb.bar); gearAb.hud.append(gearAb.txt, bg); $('hud').appendChild(gearAb.hud); }
   gearAb.hud.style.display = d && !hubMode ? 'block' : 'none';

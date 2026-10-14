@@ -16,7 +16,7 @@ function updatePlayer(dt){
   // sprinting builds up over half a second instead of snapping to full speed
   sprintRamp = sprint ? Math.min(1, sprintRamp + dt*2.2) : Math.max(0, sprintRamp - dt*4);
   const runSpd = 5.6 + (9*(spPower() === 'wolf' ? 1.15 : 1) - 5.6)*(sprint ? .55 + .45*smooth(sprintRamp) : 0);
-  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : runSpd))*(perk('quick') ? 1.06 : 1)*(inRiver(P.pos) ? .62 : 1)*(rage.t > 0 ? 1.25 : 1);
+  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : runSpd))*(perk('quick') ? 1.06 : 1)*(inRiver(P.pos) ? .62 : 1)*(sprint && howlBoost() ? 1.15 : 1)*(rage.t > 0 ? 1.25 : 1);
   const s = Math.sin(P.yaw), c = Math.cos(P.yaw), s0 = s, c0 = c, fz0 = Math.max(.6, fz);
   const jumpKey = keys.Space || touch.jump || padJumpHeld || touch.jumpHeld; touch.jump = false;
   // jump buffering (a press just before landing still counts) and coyote time (just after walking off an edge)
@@ -43,6 +43,7 @@ function updatePlayer(dt){
     const turning = tx*P.vel.x + tz*P.vel.z < 0, stopping = Math.hypot(tx, tz) < .1;
     const acc = P.onGround ? (stopping ? 18 : turning ? 9 : 13) : jet.on ? 5 : 2.6;
     P.vel.x += (tx - P.vel.x)*Math.min(1, acc*dt); P.vel.z += (tz - P.vel.z)*Math.min(1, acc*dt);
+    specialMove();   // Shadow Dash / Rolling Thunder take over your movement
     if (jump){
       jumpBuf = 0;
       const ledge = !P.crouch && fz > .3 && findMantle(s, c);
@@ -124,7 +125,7 @@ function updateJet(dt){
   shake = Math.max(shake, .004);
 }
 function update(dt){
-  updatePlayer(dt); updateJet(dt);
+  updatePlayer(dt); updateJet(dt); updateSpecial(dt); updateNvg(dt);
   if (!P.down && !P.dead && T - P.lastHit > (perk('regen2') ? 2 : perk('regen') ? 3 : 4)*(spPower() === 'panda' ? .6 : 1) && P.hp < maxHP()) P.hp = Math.min(maxHP(), P.hp + (perk('regen') ? 45 : 35)*(spPower() === 'panda' ? 1.5 : 1)*dt);
   const mv = P.moving && P.onGround && P.slideT <= 0;
   bobT += dt * (mv ? (P.sprinting ? 13 : (P.crouch ? 6 : 9)) : 0);

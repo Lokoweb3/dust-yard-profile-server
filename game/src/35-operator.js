@@ -5,7 +5,7 @@ const OP_SUIT = [['olive','Olive',0x56603e], ['black','Black',0x22252a], ['grey'
 const OP_ACCENT = [['red','Red',0xd23c3c], ['orange','Orange',0xff8a2a], ['yellow','Yellow',0xf0c419], ['green','Green',0x5cff8a], ['cyan','Cyan',0x2ee6ff],
   ['blue','Blue',0x2f6bff], ['pink','Pink',0xff3cc8], ['white','White',0xeeeeee], ['black','Black',0x1a1a1a]];
 const OP_VISOR = [['smoke','Smoke',0x1c2026], ['mirror','Gold mirror',0xd8a93a], ['cyan','Cyan glow',0x2ee6ff,0,1], ['red','Red glow',0xff3344,0,1], ['green','Green glow',0x5cff8a,0,1], ['purple','Purple glow',0xb45cff,0,1]];
-const OP_HEAD = [['none','None','Clean helmet'], ['nvg','Night vision','Flipped-up goggles'], ['antenna','Comms','Radio antenna'], ['band','Ninja band','X1 Ninja headband'], ['kabuto','Shogun crest','Golden horns']];
+const OP_HEAD = [['none','None','Clean helmet'], ['nvg','Night vision','See through smoke; nearby raiders outlined at night'], ['antenna','Comms','Gunfire stays on your map 4 s; UAV lasts 50% longer'], ['band','Ninja band','Reload 25% faster'], ['kabuto','Shogun crest','Knife, claw and sword hits do 50% more damage']];
 const OP_BACK = [['none','None','Nothing on the back'], ['jetpack','Jetpack','Activate (F / hold Triangle) to fly for 10 s'], ['katana','Katana','Activate (F / hold Triangle) to fight with the sword for 30 s'], ['pack','Assault pack','+1 grenade of each kind, 25% more spare ammo'], ['radio','Radio','Killstreaks need 1 kill less'], ['tanks','Air tanks','Activate (F / hold Triangle) for mid-air boosts for 12 s']];
 // ---- operator types: armored, human soldier, alien, animal ----
 const OP_KIND = [['armor','Armored','Sci-fi battle armor'], ['human','Soldier','Human special forces'], ['alien','Alien','Space suit and glass dome'], ['animal','Animal','Animal in combat gear']];
@@ -178,7 +178,7 @@ function opCamoOk(k){
 const opArmorOk = k => { const e = opEntry('a', k); return !e[3] || (typeof holder !== 'undefined' && !!(holder.perks && holder.perks[e[3]])); };
 // what you actually wear: locked picks fall back to the defaults
 function opMine(){ const o = Object.assign({}, opCfg); if (!opArmorOk(o.a)) o.a = OP_DEFAULT.a; if (o.m !== 'none' && !opCamoOk(o.m)) o.m = 'none'; return o; }
-function saveOp(){ store.set('dy-op', JSON.stringify(opCfg)); opVer++; bgCache.t = spCache.t = -1e9; tintSleeves(); if (typeof applyClass === 'function' && state !== 'play') applyClass(); }
+function saveOp(){ store.set('dy-op', JSON.stringify(opCfg)); opVer++; bgCache.t = spCache.t = hgCache.t = -1e9; tintSleeves(); if (typeof applyClass === 'function' && state !== 'play') applyClass(); }
 function tintSleeves(){ try { viewHands(); } catch(e){} try { const c = new THREE.Color(opEntry('s', opMine().s)[2]).lerp(new THREE.Color(0xffffff), .35); mSleeve.color.copy(c); mCuff.color.copy(new THREE.Color(opEntry('s', opMine().s)[2]).multiplyScalar(.8)); } catch(e){} }
 
 // The soldier's texture has tan armor plates, olive cloth and red stripes; a shader recolors each by hue.
@@ -610,7 +610,7 @@ function renderOp(){
       b.addEventListener('click', () => { if (opCfg.k !== e[0]){ opCfg = sanitizeOp(Object.assign({}, opCfg, KIND_PRESET[e[0]], { k:e[0] })); saveOp(); } renderOp(); refocus(`[data-k="k${e[0]}"]`); });
       row.appendChild(b);
     }
-    if (opCfg.k === 'animal') cards('Animal', 'f', OP_ANIMAL.map(a => { const sp = SP_POWERS[a[4] || a[0]]; return [a[0], a[1], sp ? sp[0] + ': ' + sp[1] : a[2]]; }));
+    if (opCfg.k === 'animal') cards('Animal', 'f', OP_ANIMAL.map(a => { const sp = SP_POWERS[a[4] || a[0]]; const k = a[4] || a[0], sx = SPECIALS[k]; return [a[0], a[1], sp ? `${sp[0]}: ${sp[1]}. Special (E): ${sx ? sx.name : ''}` : a[2]]; }));
     else if (opCfg.k === 'human') swatches('Skin tone', 'f', OP_SKIN);
     else if (opCfg.k === 'alien') swatches('Skin', 'f', OP_ALIEN);
     if (opCfg.k !== 'armor' && opCfg.k !== 'animal') cards('Headwear', 'w', opWearFor(opCfg.k));

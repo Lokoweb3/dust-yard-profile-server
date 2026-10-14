@@ -35,7 +35,7 @@ function drawCompass(){
   }
   ctx.globalAlpha = 1;
   for (const e of enemies){
-    if (!e.alive || (uavT <= 0 && T - e.lastFire > 1.5)) continue;
+    if (!e.alive || (uavT <= 0 && !(e.markT > 0) && T - e.lastFire > (headGear() === 'antenna' ? 4 : 1.5))) continue;
     let b = Math.atan2(e.pos.x - P.pos.x, -(e.pos.z - P.pos.z)) * 180/Math.PI;
     let rel = ((b - heading + 540) % 360) - 180;
     rel = Math.max(-54, Math.min(54, rel));
@@ -65,9 +65,9 @@ function drawMinimap(){
   for (const b of boxes) c.fillRect(b.minX*sc, b.minZ*sc, (b.maxX-b.minX)*sc, (b.maxZ-b.minZ)*sc);
   for (const e of enemies){
     if (!e.alive) continue;
-    const fresh = uavT > 0 || T - e.lastFire < 2;
+    const reveal = headGear() === 'antenna' ? 4 : 2, fresh = uavT > 0 || e.markT > 0 || T - e.lastFire < reveal;
     if (!fresh) continue;
-    c.globalAlpha = uavT > 0 ? 1 : 1 - (T - e.lastFire)/2; c.fillStyle = e.type === 'sniper' ? '#ffd36b' : '#e5484d';
+    c.globalAlpha = uavT > 0 || e.markT > 0 ? 1 : 1 - (T - e.lastFire)/reveal; c.fillStyle = e.type === 'sniper' ? '#ffd36b' : '#e5484d';
     c.beginPath(); c.arc(e.pos.x*sc, e.pos.z*sc, 4, 0, Math.PI*2); c.fill();
   }
   for (const p of pickups){ c.fillStyle = p.kind === 'ammo' ? '#e0b23a' : p.kind === 'health' ? '#ffffff' : '#9fd36a'; c.fillRect(p.g.position.x*sc - 2.5, p.g.position.z*sc - 2.5, 5, 5); }

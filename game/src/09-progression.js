@@ -40,7 +40,11 @@ function prideAura(){
   for (const m of coop.mates.values()){ const o = m.pr && m.pr.op; if (o && o.k === 'animal' && o.f === 'lion' && !(m.pr.dn) && m.pos && m.pos.distanceTo(P.pos) < 15) return true; }
   return false;
 }
-let bgCache = { t:-1e9, v:'' };
+let bgCache = { t:-1e9, v:'' }, hgCache = { t:-1e9, v:'' };
+function headGear(){
+  const now = performance.now(); if (now - hgCache.t < 250) return hgCache.v;
+  let v = ''; try { v = opMine().h || ''; } catch(e){} hgCache = { t:now, v }; return v;
+}
 function backGear(){
   const now = performance.now(); if (now - bgCache.t < 250) return bgCache.v;
   let v = ''; try { v = opMine().b || ''; } catch(e){} bgCache = { t:now, v }; return v;
