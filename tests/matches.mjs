@@ -45,6 +45,14 @@ check('honest solo match is verified and can drop items', () => {
   assert(e.dropsAllowed, 'honest match should be allowed drops');
   const best = M.verifiedBest(d.pub, 'yard'); assert(best.wave === 7 && best.score === 9000, 'best should be recorded, got ' + JSON.stringify(best));
 });
+check('Jungle Ruins matches are recorded on their own leaderboard', () => {
+  const d = device(), { sid } = start(d, 'waves', 'jungle');
+  const p = playWaves(d, sid, 1, 5); assert(p.r.status === 200, 'honest jungle waves were rejected: ' + JSON.stringify(p.r));
+  wait(10); const e = end(d, sid, 6, p.k + 2, 4, p.b, 7000);
+  assert(e.verified && e.verified.wave === 6, 'jungle match should verify, got ' + JSON.stringify(e));
+  const best = M.verifiedBest(d.pub, 'jungle'); assert(best && best.wave === 6 && best.score === 7000, 'jungle best should be recorded, got ' + JSON.stringify(best));
+  assert(!M.verifiedBest(d.pub, 'yard'), 'a jungle match should not count for Dust Yard');
+});
 check('waves cleared faster than raiders can spawn are rejected', () => {
   const d = device(), { sid } = start(d);
   wait(6); assert(waveRep(d, sid, 1, 4).status === 200, 'wave 1 in 6s should be fine');
