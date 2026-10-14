@@ -1,0 +1,92 @@
+[
+ {
+  "id": "hdWolf",
+  "file": "hdWolf.glb",
+  "external": true
+ },
+ {
+  "id": "hdApe",
+  "file": "hdApe.glb",
+  "external": true
+ },
+ {
+  "id": "hdWolfToon",
+  "file": "hdWolfToon.glb",
+  "external": true
+ },
+ {
+  "id": "hdFox",
+  "file": "hdFox.glb",
+  "external": true
+ },
+ {
+  "id": "hdBear",
+  "file": "hdBear.glb",
+  "external": true
+ },
+ {
+  "id": "hdTiger",
+  "file": "hdTiger.glb",
+  "external": true
+ },
+ {
+  "id": "hdPanda",
+  "file": "hdPanda.glb",
+  "external": true
+ },
+ {
+  "id": "hdLion",
+  "file": "hdLion.glb",
+  "external": true
+ },
+ {
+  "id": "hdHumanLight",
+  "file": "hdHumanLight.glb",
+  "external": true
+ },
+ {
+  "id": "hdHumanTan",
+  "file": "hdHumanTan.glb",
+  "external": true
+ },
+ {
+  "id": "hdHumanBrown",
+  "file": "hdHumanBrown.glb",
+  "external": true
+ },
+ {
+  "id": "hdHumanDark",
+  "file": "hdHumanDark.glb",
+  "external": true
+ },
+ {
+  "id": "soldierGlb",
+  "file": "soldierGlb.glb",
+  "external": true
+ },
+ {
+  "id": "skullFace",
+  "file": "skullFace.png",
+  "external": false
+ },
+ {
+  "id": "skullAlpha",
+  "file": "skullAlpha.png",
+  "external": false
+ },
+ {
+  "id": "skullCard",
+  "file": "skullCard.jpg",
+  "external": false
+ },
+ {
+  "id": "soldierDiff",
+  "file": "soldierDiff.jpg",
+  "external": true
+ },
+ {
+  "id": "soldierNorm",
+  "file": "soldierNorm.jpg",
+  "external": true
+ }
+]

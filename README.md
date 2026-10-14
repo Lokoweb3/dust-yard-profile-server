@@ -2,7 +2,7 @@
 
 Mints one soulbound profile NFT per claimed player on X1 and updates its stats at milestones. The server pays all fees.
 
-It also hosts the game: `public/index.html` is served at your Railway address, so players open that one address to play, and the game connects to the server automatically. To update the game, replace `public/index.html` and commit.
+It also hosts the game: `public/index.html` is served at your Railway address, so players open that one address to play, and the game connects to the server automatically. To change the game, edit its sources in `game/`, run `npm run build`, and commit both (see "The game" below).
 
 ## Deploy on Railway
 
@@ -95,10 +95,36 @@ Run everything locally with `npm test` (the browser test needs `npx playwright i
 
 ## The game
 
-- **Source:** `game/dust-yard.html`. It's a single self-contained file (it also runs on its own as the claude.ai version), so edit this one.
-- **Build:** `npm run build` writes what Railway serves: `public/index.html` (minified, about 1.2 MB) and `public/assets/` (models and textures, named by content hash so browsers cache them until they change).
-- Commit both the source and the build. CI fails if `public/` is out of date with the source.
-- The HD wolf head (0.8 MB) only downloads when someone picks it or meets armored Wolf Pack raiders.
+The game lives in `game/` as ordinary source files. `npm run build` joins them into the page.
+
+| Where | What |
+|---|---|
+| `game/index.html` | The page: menus, HUD and other markup, with `{{placeholders}}` the build fills in |
+| `game/styles.css` | All the CSS |
+| `game/src/*.js` | The game code, in numbered files joined in order into one script (see below) |
+| `game/vendor/` | Small third-party libraries: tweetnacl (signatures) and qrcode-generator |
+| `game/assets/` | Models and textures as real files; `assets.json` lists them and which ones are served separately |
+
+The code files share one scope, so order matters: a file can use anything an earlier file defines.
+
+| Files | Area |
+|---|---|
+| `00`-`04` | Setup, renderer and scenes, world and collision, audio, shared helpers |
+| `05`-`06` | Set dressing and the three maps (Dust Yard, Neon District, Jungle Ruins) |
+| `07`-`13` | Weapons and viewmodel, challenges, progression, camos, attachments and grenades, knife and katana |
+| `11`, `14`, `18`, `33` | The Juggernaut boss, enemy types, raider AI and models, the other bosses |
+| `15`-`16`, `34` | Killstreaks, animal streaks, Gun Game, Create-a-Class and other modes |
+| `19`-`25` | Player state, settings, Team Deathmatch, HUD, waves, the main update, game flow |
+| `26`-`32` | Leaderboard and plaza, ninja companions, phone and wallet, accounts, server sync, cosmetics, badges |
+| `35` | Operators (characters, heads, back gear) and the third-person camera |
+| `36`-`39` | Co-op, input (keyboard, mouse, controller, touch), post-processing, the main loop |
+
+- **Build:** `npm run build` writes two versions:
+  - `public/index.html` and `public/assets/` are what Railway serves. The code and CSS are minified (about 1.4 MB). Models and textures are served separately, named by content hash so browsers cache them until they change.
+  - `dist/dust-yard.html` is one self-contained file with everything embedded. It's the claude.ai version and isn't committed.
+- `npm run build:watch` rebuilds every time a file in `game/` changes.
+- Commit the sources and `public/`. CI fails if `public/` is out of date with the sources.
+- The HD heads only download when they're needed: your own operator's, and the ones the current map's raiders use.
 
 ## Compliance features
 

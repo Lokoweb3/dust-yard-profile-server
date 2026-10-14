@@ -49,7 +49,7 @@ jobs:
       - run: npm ci
       - name: Catch missing imports between modules
         run: npm run lint
-      - name: Game build is up to date with game/dust-yard.html
+      - name: Game build is up to date with the sources in game/
         run: |
           npm run build
           if [ -n "$(git status --porcelain public/)" ]; then git status --porcelain public/; echo "public/ is out of date: run npm run build and commit the result"; exit 1; fi
