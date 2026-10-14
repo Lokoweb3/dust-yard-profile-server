@@ -40,7 +40,7 @@ function sandbagWall(x, z, len, alongX, layers=4){
   addCollider(x, z, alongX ? len : .42, alongX ? .42 : len, .11 + layers*.21);
 }
 sandbagWall(8,-24,3.6,true); sandbagWall(6.2,-25.9,3,false); sandbagWall(9.8,-25.9,3,false);
-sandbagWall(0,30,4.4,true); sandbagWall(-30,-24,4.4,true); sandbagWall(22,-2,3.6,false); sandbagWall(-40,10,3.4,true,3);
+sandbagWall(0,30,4.4,true); sandbagWall(-30,-24,4.4,true); sandbagWall(22,-2,3.6,false);
 const bags = new THREE.InstancedMesh(bagGeo, new THREE.MeshStandardMaterial({ map:bagTex, roughness:1 }), bagMats.length);
 bagMats.forEach((m,i) => bags.setMatrixAt(i, m)); bags.castShadow = bags.receiveShadow = true;
 scene.add(bags); solids.push(bags);
@@ -123,11 +123,11 @@ decal(-2,4,3,40,trackTex,.15); decal(14,-14,3,30,trackTex,1.2); decal(-30,0,3,34
 /* ---------- Atmosphere: smoke plumes and drifting dust ---------- */
 const smokeTex = canvasTex(64,64,(g,w,h)=>{ g.clearRect(0,0,w,h); for(let i=0;i<6;i++){ const x=20+Math.random()*24, y=20+Math.random()*24, r=14+Math.random()*12; const gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(255,255,255,.5)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,w,h);} });
 const plumes = [];
-function plume(x, y, z, scale, height, count, color, op){
+function plume(x, y, z, scale, height, count, color, op, parent = scene){
   const sprites = [];
   for (let i=0;i<count;i++){
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:smokeTex, color, transparent:true, depthWrite:false, opacity:0 }));
-    s.userData.phase = i/count; s.userData.rot = Math.random()*6; scene.add(s); sprites.push(s);
+    s.userData.phase = i/count; s.userData.rot = Math.random()*6; parent.add(s); sprites.push(s);
   }
   plumes.push({ x, y, z, scale, height, sprites, op, speed:.05 + Math.random()*.02 });
 }

@@ -15,8 +15,15 @@ ground.material.onBeforeCompile = sh => {
 };
 ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
 
+// texture a box by real size (one repeat every s metres), so big blocks don't stretch their texture
+function tileBox(geo, w, h, d, s, sy = s, o = Math.random()){
+  const uv = geo.attributes.uv, dims = [[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];
+  for (let f=0;f<6;f++) for (let k=0;k<4;k++){ const i = f*4 + k, vy = f === 2 || f === 3 ? s : sy; uv.setXY(i, uv.getX(i)*dims[f][0]/s + o, uv.getY(i)*dims[f][1]/vy); }
+  uv.needsUpdate = true; return geo;
+}
 function addBox(x, z, w, d, h, mat, y0=0, collide=true){
   const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  if (mat.userData && mat.userData.tile) tileBox(m.geometry, w, h, d, mat.userData.tile);
   m.position.set(x, y0 + h/2, z); m.castShadow = true; m.receiveShadow = true;
   worldParent.add(m); solids.push(m);
   if (collide) boxes.push({ minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, top:y0+h });
@@ -36,7 +43,7 @@ const cMats = {
 };
 const containers = [
   [-22,-18,12,2.6,'teal',true], [20,-22,2.6,12,'rust'], [4,-6,12,2.6,'mustard'], [-6,8,2.6,12,'slate'],
-  [24,10,12,2.6,'teal',true], [-28,14,2.6,12,'rust'], [10,26,12,2.6,'rust'], [-12,-34,12,2.6,'mustard'],
+  [24,10,12,2.6,'teal',true], [10,26,12,2.6,'rust'], [-12,-34,12,2.6,'mustard'],
   [33,-6,2.6,12,'mustard'], [-35,-4,12,2.6,'teal'], [-18,30,12,2.6,'slate',true], [30,34,2.6,12,'slate']
 ];
 for (const [x,z,w,d,c,stack] of containers){
