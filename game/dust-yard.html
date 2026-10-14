@@ -3246,7 +3246,7 @@ const sfx = {
   bolt: () => { tone(500, .03, .07, 'square', .05); blast(.16, 3000, .05, false, .25); tone(360, .04, .07, 'square', .55); tone(620, .03, .08, 'square', .82); },
   shellIn: () => { blast(.14, 2400, .05, false); tone(380, .03, .05, 'square', .02); },
   swap: () => { blast(.1, 1500, .08, false); tone(300, .03, .05, 'square', .12); },
-  step: run => blast(run ? .07 : .045, 420, .09, false),
+  step: (run, side = 1) => { blast((run ? .075 : .048)*(side > 0 ? 1 : .85), side > 0 ? 420 : 360, run ? .08 : .09, false); if (run) blast(.02, 1400, .04, false, .02); },
   boom: d => { const v = Math.max(.15, 1.1 - d*.02); blast(v, 1600, 1.2, true, 0, 55); blast(v*.4, 500, 1.8, false, .08); },
   bang: d => { const v = Math.max(.15, 1 - d*.02); blast(v, 7000, .35, true, 0, 280); },
   smoke: () => blast(.15, 1200, 2.5, false),
@@ -4018,10 +4018,14 @@ function zc(parent, r0, r1, u0, u1, v, mat, x=0, seg=16, open=false){
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, u1-u0, seg, 1, open), mat);
   m.rotation.x = HP; m.position.set(x, v, -(u0+u1)/2); parent.add(m); return m;
 }
-const knuckleGeo = new THREE.SphereGeometry(1,8,6);
+const knuckleGeo = new THREE.SphereGeometry(1,16,12);
+const mVClaw = MS(0xf1ead8,.35,.05), vmClaws = [];
 function finger(parent, pts, r){
   for (let i=0;i<pts.length;i++){ const s = new THREE.Mesh(knuckleGeo, mGlove); s.position.copy(pts[i]); s.scale.setScalar(r*(1-i*.07)); parent.add(s); }
-  for (let i=0;i<pts.length-1;i++) limbBetween(parent, pts[i], pts[i+1], r*(1-i*.07), r*(1-(i+1)*.07), mGlove, 8);
+  for (let i=0;i<pts.length-1;i++) limbBetween(parent, pts[i], pts[i+1], r*(1-i*.07), r*(1-(i+1)*.07), mGlove, 14);
+  // a claw on the fingertip, shown only for animal operators
+  const n = pts.length, d = pts[n-1].clone().sub(pts[n-2]).normalize(), cl = new THREE.Mesh(new THREE.ConeGeometry(r*.55, r*2.4, 8), mVClaw);
+  cl.position.copy(pts[n-1]).addScaledVector(d, r*1.5); cl.quaternion.setFromUnitVectors(UP, d); cl.visible = false; parent.add(cl); vmClaws.push(cl);
 }
 // A gloved hand closed around a grip whose axis is local +Y. side 1 = right hand, -1 = left hand.
 function gripHand(R, side, trigger){
@@ -4035,8 +4039,10 @@ function gripHand(R, side, trigger){
   });
   if (trigger) finger(g, [new V3(X(rr*.85),.04,-.012), new V3(X(rr*.45),.045,-.04), new V3(X(.006),.043,-.066)], .0102);
   finger(g, [new V3(X(rr*.95),.032,.022), new V3(X(rr*.35),.047,.034), new V3(X(-rr*.35),.05,.026), new V3(X(-rr*.78),.046,.004)], .0114);
-  const palm = new THREE.Mesh(Bx(.022,.092,.06), mGlove); palm.position.set(X(R+.017),-.004,.014); g.add(palm);
-  const pad = new THREE.Mesh(Bx(.006,.055,.042), mPad); pad.position.set(X(R+.03),.006,.006); g.add(pad);
+  // rounded palm and back of the hand (no boxes), with a padded knuckle guard
+  const palm = new THREE.Mesh(knuckleGeo, mGlove); palm.scale.set(.0135,.05,.034); palm.position.set(X(R+.016),-.002,.014); g.add(palm);
+  const back = new THREE.Mesh(knuckleGeo, mGlove); back.scale.set(.011,.04,.026); back.position.set(X(R+.024),.004,.006); g.add(back);
+  const pad = new THREE.Mesh(knuckleGeo, mPad); pad.scale.set(.006,.03,.022); pad.position.set(X(R+.032),.008,.006); g.add(pad);
   const heel = new THREE.Mesh(knuckleGeo, mGlove); heel.scale.set(.02,.026,.022); heel.position.set(X(R+.01),-.042,.03); g.add(heel);
   return g;
 }
@@ -5978,6 +5984,7 @@ const P = { pos:new V3(0,0,36), vel:new V3(), yaw:0, pitch:0, onGround:true, hp:
 const SENS = 0.0022, SLIDE = 0.8;
 let state = 'menu', T = 0;
 let reloading = false, reloadT = 0, lastShot = -9, shotsInRow = 0, recoilAcc = 0, kick = 0, kickR = 0, flashT = 0;
+let coyoteT = 0, jumpBuf = 0, mantle = null, sprintRamp = 0, stepSide = 1;
 let fireQueued = false, actionT = 0, actionDone = 0, swapT = 0, nextW = 0, inspectT = 0, relEnv = 0, breath = 4, lastStep = 0, scoped = false, steadyF = 0;
 const _mz = new V3(), _iq = new THREE.Quaternion();
 let firing = false, ads = false, bobT = 0, sprintF = 0, adsF = 0, slideF = 0;
@@ -6512,21 +6519,41 @@ function updatePlayer(dt){
   const wantSprint = (keys.ShiftLeft || keys.ShiftRight || padSprint || (touch.moveId !== null && touch.my < -0.92)) && fz > 0.5;
   if (wantSprint && P.crouch && P.slideT <= 0){ P.crouch = false; $('tCrouch').classList.remove('on'); }
   const sprint = wantSprint && !ads && !firing && !P.crouch;
-  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : (sprint ? 9*(spPower() === 'wolf' ? 1.15 : 1) : 5.6)))*(perk('quick') ? 1.06 : 1)*(inRiver(P.pos) ? .62 : 1)*(rage.t > 0 ? 1.25 : 1);
-  const s = Math.sin(P.yaw), c = Math.cos(P.yaw);
-  const jump = keys.Space || touch.jump; touch.jump = false;
+  // sprinting builds up over half a second instead of snapping to full speed
+  sprintRamp = sprint ? Math.min(1, sprintRamp + dt*2.2) : Math.max(0, sprintRamp - dt*4);
+  const runSpd = 5.6 + (9*(spPower() === 'wolf' ? 1.15 : 1) - 5.6)*(sprint ? .55 + .45*smooth(sprintRamp) : 0);
+  const speed = (ads ? 3.2 : (P.crouch ? 2.8 : runSpd))*(perk('quick') ? 1.06 : 1)*(inRiver(P.pos) ? .62 : 1)*(rage.t > 0 ? 1.25 : 1);
+  const s = Math.sin(P.yaw), c = Math.cos(P.yaw), s0 = s, c0 = c, fz0 = Math.max(.6, fz);
+  const jumpKey = keys.Space || touch.jump; touch.jump = false;
+  // jump buffering (a press just before landing still counts) and coyote time (just after walking off an edge)
+  if (jumpKey && !P.jumpHeld) jumpBuf = .14; P.jumpHeld = jumpKey; jumpBuf = Math.max(0, jumpBuf - dt);
+  coyoteT = P.onGround ? .12 : Math.max(0, coyoteT - dt);
+  const jump = jumpBuf > 0 && coyoteT > 0;
+  if (mantle){
+    // climbing up onto low cover: a quick lift then a step forward
+    mantle.t += dt/mantle.dur; const k = Math.min(1, mantle.t), up = smooth(Math.min(1, k/.65)), fw = smooth(Math.max(0, (k - .35)/.65));
+    P.pos.set(mantle.from.x + (mantle.to.x - mantle.from.x)*fw, mantle.from.y + (mantle.to.y - mantle.from.y)*up, mantle.from.z + (mantle.to.z - mantle.from.z)*fw);
+    P.vel.set(0, 0, 0); P.onGround = false; P.moving = false; P.sprinting = false; landDip = Math.max(landDip, Math.sin(k*Math.PI)*.06);
+    if (k >= 1){ mantle = null; P.onGround = true; P.vel.set(-s0*fz0*3, 0, -c0*fz0*3); }
+    return;
+  }
   if (P.slideT > 0){
     P.slideT -= dt;
     const sp = 3 + 10.5*Math.max(0, P.slideT/SLIDE);
     P.vel.x = P.slideDir.x*sp; P.vel.z = P.slideDir.z*sp;
-    if (jump && P.onGround){ P.slideT = 0; P.crouch = false; P.vel.y = rage.t > 0 ? 9.5 : 7.2; P.onGround = false; $('tCrouch').classList.remove('on'); }
+    if (jump){ jumpBuf = 0; coyoteT = 0; P.slideT = 0; P.crouch = false; P.vel.y = rage.t > 0 ? 9.5 : 7.2; P.onGround = false; $('tCrouch').classList.remove('on'); }
   } else {
     const tx = (-s*fz + c*fx)*speed, tz = (-c*fz - s*fx)*speed;
-    const acc = P.onGround ? 14 : 3;
+    // quick to start and stop on the ground, heavier when changing direction at a sprint, little control in the air
+    const turning = tx*P.vel.x + tz*P.vel.z < 0, stopping = Math.hypot(tx, tz) < .1;
+    const acc = P.onGround ? (stopping ? 18 : turning ? 9 : 13) : 2.6;
     P.vel.x += (tx - P.vel.x)*Math.min(1, acc*dt); P.vel.z += (tz - P.vel.z)*Math.min(1, acc*dt);
-    if (jump && P.onGround){
+    if (jump){
+      jumpBuf = 0;
+      const ledge = !P.crouch && fz > .3 && findMantle(s, c);
+      if (ledge){ mantle = { t:0, dur:.32 + (ledge.y - P.pos.y)*.12, from:P.pos.clone(), to:ledge }; sfx.step(true); return; }
       if (P.crouch){ P.crouch = false; $('tCrouch').classList.remove('on'); }
-      else { P.vel.y = rage.t > 0 ? 9.5 : 7.2; P.onGround = false; }
+      else { P.vel.y = rage.t > 0 ? 9.5 : 7.2; P.onGround = false; coyoteT = 0; }
     }
   }
   // ladders
@@ -6563,6 +6590,23 @@ function updatePlayer(dt){
   P.sprinting = sprint && P.moving && P.slideT <= 0;
   strafeF += (((P.vel.x*c - P.vel.z*s)/9) - strafeF) * Math.min(1, dt*8);
 }
+// low cover just ahead (waist to chest high) that you can climb onto instead of jumping into it
+function findMantle(s, c){
+  const fx = -s, fz = -c, y = P.pos.y;
+  for (const d of [.55, .8]){
+    const px = P.pos.x + fx*d, pz = P.pos.z + fz*d;
+    for (const b of boxes){
+      const t = b.top || 1.2; if (t < y + .55 || t > y + 1.65) continue;
+      if (px < b.minX - .05 || px > b.maxX + .05 || pz < b.minZ - .05 || pz > b.maxZ + .05) continue;
+      // stand a little way onto the top, and only if nothing taller is in the way there
+      const to = new V3(P.pos.x + fx*(d + .45), t, P.pos.z + fz*(d + .45));
+      if (groundAt(to.x, to.z, t + .1) > t + .05) return null;
+      if (boxes.some(o => o !== b && (o.top || 1.2) > t + .35 && to.x > o.minX - .35 && to.x < o.maxX + .35 && to.z > o.minZ - .35 && to.z < o.maxZ + .35)) return null;
+      return to;
+    }
+  }
+  return null;
+}
 function update(dt){
   updatePlayer(dt);
   if (!P.down && !P.dead && T - P.lastHit > (perk('regen2') ? 2 : perk('regen') ? 3 : 4)*(spPower() === 'panda' ? .6 : 1) && P.hp < maxHP()) P.hp = Math.min(maxHP(), P.hp + (perk('regen') ? 45 : 35)*(spPower() === 'panda' ? 1.5 : 1)*dt);
@@ -6571,14 +6615,15 @@ function update(dt){
   const targetH = P.slideT > 0 ? 0.95 : (P.crouch ? 1.12 : 1.62);
   camH += (targetH - camH) * Math.min(1, dt*12);
   landDip *= Math.exp(-dt*9);
-  const bobY = mv ? Math.sin(bobT)*0.035*(P.sprinting ? 1.3 : 1)*(1-adsF*.6) : 0;
-  camera.position.set(P.pos.x, P.pos.y + camH - landDip + bobY, P.pos.z);
+  const bobAmp = mv ? (P.sprinting ? 1.35 : P.crouch ? .6 : 1)*(1-adsF*.7) : 0;
+  const bobY = Math.sin(bobT)*0.034*bobAmp, bobX = Math.cos(bobT*.5)*0.028*bobAmp;
+  camera.position.set(P.pos.x + Math.cos(P.yaw)*bobX, P.pos.y + camH - landDip + bobY, P.pos.z - Math.sin(P.yaw)*bobX);
   adsF += ((ads ? 1 : 0) - adsF) * Math.min(1, dt*14);
   sprintF += ((P.sprinting ? 1 : 0) - sprintF) * Math.min(1, dt*10);
   slideF += ((P.slideT > 0 ? 1 : 0) - slideF) * Math.min(1, dt*10);
   const WW = cur();
   scoped = !!WW.scope && adsF > .82 && swapT === 0 && !reloading;
-  const fov = cfg.fov - adsF*(cfg.fov - (WW.scope ? (adsF > .82 ? WW.adsFov : 55) : WW.adsFov)) + sprintF*6 + slideF*8;
+  const fov = cfg.fov - adsF*(cfg.fov - (WW.scope ? (adsF > .82 ? WW.adsFov : 55) : WW.adsFov)) + sprintF*(4 + 5*sprintRamp) + slideF*8;
   const steady = scoped && (keys.ShiftLeft || keys.ShiftRight) && breath > 0;
   breath = steady ? Math.max(0, breath - dt) : Math.min(4, breath + dt*.8);
   steadyF += ((steady ? 1 : 0) - steadyF) * Math.min(1, dt*6);
@@ -6588,7 +6633,7 @@ function update(dt){
   rollZ += ((-strafeF*0.02 + slideF*0.07 + (mv ? Math.sin(bobT*.5)*0.004 : 0)) - rollZ) * Math.min(1, dt*8);
   const sAmp = scoped ? (1 - steadyF*.85) * (P.moving ? 2 : 1) : 0;
   const sx = (Math.sin(T*.9)*.0035 + Math.sin(T*2.1)*.0012)*sAmp, sy = (Math.sin(T*1.3)*.0025 + Math.cos(T*.7)*.0015)*sAmp;
-  camera.rotation.set(P.pitch + (Math.random()-.5)*shake + sy, P.yaw + (Math.random()-.5)*shake + sx, rollZ);
+  camera.rotation.set(P.pitch + (Math.random()-.5)*shake + sy - sprintF*.025 - landDip*.35, P.yaw + (Math.random()-.5)*shake + sx, rollZ);
   scene.updateMatrixWorld();
 
   updateWeapon(dt); updateRage(dt);
@@ -6600,7 +6645,7 @@ function update(dt){
   updateAmbience(dt);
   infernoTex.offset.y -= dt*.35; auroraTex.offset.x += dt*.06; auroraTex.offset.y = Math.sin(T*.3)*.1; camoMats.aurora.emissiveIntensity = .75 + Math.sin(T*1.7)*.2; camoMats.inferno.emissiveIntensity = 1 + Math.sin(T*3)*.25; camoMats.diamond.emissiveIntensity = .2 + Math.max(0, Math.sin(T*2.3))*.35;
   const stepIdx = Math.floor(bobT/Math.PI);
-  if (mv && stepIdx !== lastStep && !(spPower() === 'fox' && !P.sprinting)){ if (inRiver(P.pos)) blast(.09, 1800, .22, false); else sfx.step(P.sprinting); }
+  if (mv && stepIdx !== lastStep && !(spPower() === 'fox' && !P.sprinting)){ if (inRiver(P.pos)) blast(.09, 1800, .22, false); else { stepSide = -stepSide; sfx.step(P.sprinting, stepSide); } }
   lastStep = stepIdx;
 
   for (const e of enemies){ if (coop && coop.started) coopEnemy(e, dt); else updateEnemy(e, dt); }
@@ -6721,7 +6766,7 @@ function clearEnemies(){
   for (const p of pickups) scene.remove(p.g); pickups.length = 0;
 }
 function resetGame(){
-  clearEnemies();
+  clearEnemies(); mantle = null; sprintRamp = 0; jumpBuf = 0;
   Object.assign(P, { yaw:0, pitch:0, onGround:true, hp:maxHP(), lastHit:-99, moving:false, sprinting:false, crouch:false, slideT:0, ladder:null });
   camH = 1.62; landDip = 0; rollZ = 0; shake = 0; strafeF = 0; mdx = mdy = 0; sway.x = sway.y = 0; slideF = 0; $('tCrouch').classList.remove('on');
   P.pos.set(0,0,36); P.vel.set(0,0,0);
@@ -9621,7 +9666,10 @@ const OP_ANIMAL = [['wolf','Wolf','Grey wolf',0x7d7f86], ['fox','Fox','Red fox',
 // detailed AI-made 3D heads, loaded only the first time someone needs one
 // Each species (and each soldier skin tone) has a detailed 3D head; h is its height including the neck.
 // Animal heads are then drawn 28% larger (see opHead), so their h is smaller here.
-const OP_HD = {}, OP_HD_LOADING = {};
+const OP_HD = {}, OP_HD_LOADING = {}, HD_FAIL = {};
+// a detailed head that is still on its way (the operator is held back until it arrives, so the old head never flashes up)
+const hdPending = k => !!(k && OP_HD_IDS[k] && THREE.GLTFLoader && !OP_HD[k] && !HD_FAIL[k]);
+let opHeadWait = false;
 const OP_HD_IDS = { wolf:'hdWolf', wolfT:'hdWolfToon', ape:'hdApe', fox:'hdFox', bear:'hdBear', tiger:'hdTiger', panda:'hdPanda', lion:'hdLion',
   hLight:'hdHumanLight', hTan:'hdHumanTan', hBrown:'hdHumanBrown', hDark:'hdHumanDark' };
 const OP_HD_FIT = { wolf:{ h:.31, y:.01, z:0, ry:0 }, wolfT:{ h:.3, y:.02, z:0, ry:0 }, ape:{ h:.28, y:.01, z:.01, ry:0 }, fox:{ h:.3, y:.02, z:0, ry:0 }, bear:{ h:.29, y:.02, z:0, ry:0 },
@@ -9639,8 +9687,8 @@ function ensureHD(k){
       const s = F.h/sz.y; sc.scale.setScalar(s); sc.position.set(-c.x*s, -c.y*s, -c.z*s); sc.rotation.y = F.ry;
       sc.traverse(o => { if (o.isMesh){ o.castShadow = true; o.material.roughness = k === 'wolf' ? .85 : .7; o.material.metalness = 0; } });
       const wrap = new THREE.Group(); wrap.add(sc); OP_HD[k] = wrap; opVer++;
-    }, e => console.warn('HD head failed', e));
-  }).catch(e => { console.warn('HD head failed', e); OP_HD_LOADING[k] = false; });
+    }, e => { console.warn('HD head failed', e); HD_FAIL[k] = true; opVer++; });
+  }).catch(e => { console.warn('HD head failed', e); HD_FAIL[k] = true; opVer++; });
   return false;
 }
 const OP_WEAR = [['helmet','Combat helmet','Military helmet'], ['beret','Beret','Special forces beret'], ['cap','Patrol cap','Soft cap'], ['dome','Space dome','Glass space helmet'], ['none','Nothing','Bare head']];
@@ -9677,6 +9725,7 @@ function opHead(op, H, Hp, add, M, at){
   if (hdHuman && ensureHD(hdHuman)){
     const F = OP_HD_FIT[hdHuman]; put(OP_HD[hdHuman].clone(), 0, F.y, F.z); hr = F.hr;
   } else if (op.k === 'human'){
+    if (hdPending(hdHuman)) opHeadWait = true;
     const skinC = (OP_SKIN.find(s => s[0] === op.f) || OP_SKIN[1])[2], skin = M(skinC, { roughness:.6 }), hair = M(0x2a1f18, { roughness:.9 });
     put(sph(.105, skin, .92, 1.08, 1), 0, 0, 0); put(sph(.08, skin, 1, .8, 1), 0, -.055, .02);
     put(box(.022, .04, .03, skin), 0, -.005, .1, -.2); put(cyl(.05, .056, .12, skin), 0, -.13, -.01);
@@ -9693,10 +9742,12 @@ function opHead(op, H, Hp, add, M, at){
     let sp = (OP_ANIMAL.find(s => s[0] === op.f) || OP_ANIMAL[0]), fur = sp[3];
     const hdk = sp[4] ? null : OP_HD_SPECIES[sp[0]];
     const hdDrawn = !!(hdk && ensureHD(hdk));
+    if (!hdDrawn && hdPending(hdk)) opHeadWait = true;
     if (hdDrawn){ const F = OP_HD_FIT[hdk]; put(OP_HD[hdk].clone(), 0, F.y, F.z); hdTail(sp); hr = .15; }
     else if (sp[4]){
       if (ensureHD(sp[4])){ const F = OP_HD_FIT[sp[4]]; put(OP_HD[sp[4]].clone(), 0, F.y, F.z); add('Head', (() => { const grp = new THREE.Group(); for (const p of P) grp.add(p); return grp; })());
         P.length = 0; op = Object.assign({}, op, { w:'none' }); sp = OP_ANIMAL.find(s => s[0] === sp[4]); hdTail(sp); return; }
+      if (hdPending(sp[4])) opHeadWait = true;
       sp = OP_ANIMAL.find(s => s[0] === sp[4]);
     }
     if (!hdDrawn){
@@ -9779,13 +9830,22 @@ const opArmorOk = k => { const e = opEntry('a', k); return !e[3] || (typeof hold
 // what you actually wear: locked picks fall back to the defaults
 function opMine(){ const o = Object.assign({}, opCfg); if (!opArmorOk(o.a)) o.a = OP_DEFAULT.a; if (o.m !== 'none' && !opCamoOk(o.m)) o.m = 'none'; return o; }
 function saveOp(){ store.set('dy-op', JSON.stringify(opCfg)); opVer++; tintSleeves(); if (typeof applyClass === 'function' && state !== 'play') applyClass(); }
-function tintSleeves(){ try { const c = new THREE.Color(opEntry('s', opMine().s)[2]).lerp(new THREE.Color(0xffffff), .35); mSleeve.color.copy(c); mCuff.color.copy(new THREE.Color(opEntry('s', opMine().s)[2]).multiplyScalar(.8)); } catch(e){} }
+function tintSleeves(){ try { viewHands(); } catch(e){} try { const c = new THREE.Color(opEntry('s', opMine().s)[2]).lerp(new THREE.Color(0xffffff), .35); mSleeve.color.copy(c); mCuff.color.copy(new THREE.Color(opEntry('s', opMine().s)[2]).multiplyScalar(.8)); } catch(e){} }
 
 // The soldier's texture has tan armor plates, olive cloth and red stripes; a shader recolors each by hue.
 const OP_MATS = new Map();
 // body fur colour per species, matched to the detailed heads
 const FUR_COL = { wolf:0x5d6068, fox:0xd8641e, bear:0x6e4226, tiger:0xe08a2e, lion:0xc98a3e, ape:0x2e2b2a, panda:0x1c1c1e };
 const furColor = sp => FUR_COL[sp[0]] !== undefined ? FUR_COL[sp[0]] : sp[3];
+// first-person hands: furry paws with claws for animal operators, gloves for everyone else
+function viewHands(){
+  const o = opMine(), animal = o.k === 'animal';
+  if (animal){ const sp = animalSpecies(); mGlove.map = furTex; mGlove.color.setHex(furColor(sp)).multiplyScalar(sp[0] === 'panda' ? 1.4 : .95); mGlove.roughness = 1; mPad.color.setHex(sp[0] === 'ape' ? 0x2a2624 : 0x3a2c26); }
+  else { mGlove.map = gloveTex; mGlove.color.setHex(0xffffff); mGlove.roughness = .9; mPad.color.setHex(0x2e2a25); }
+  mGlove.needsUpdate = true;
+  const tiny = animal && animalSpecies()[0] === 'ape';
+  for (const c of vmClaws){ c.visible = animal; c.scale.setScalar(tiny ? .55 : 1); }
+}
 // fine strands, tiled over the arms of animal operators
 const furTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   g.fillStyle = '#808080'; g.fillRect(0, 0, 128, 128);
@@ -9950,7 +10010,7 @@ function opTailSway(o, t){
 }
 const _tq = new THREE.Quaternion(), _te = new THREE.Euler();
 const OP_BONES = ['Hips','Spine','Spine2','Neck','Head','HeadTop_End','LeftArm','LeftForeArm','LeftHand','RightArm','RightForeArm','RightHand','LeftUpLeg','LeftLeg','LeftFoot','RightUpLeg','RightLeg','RightFoot'];
-function buildOperator(op, unique, mine){
+function buildOperator(op, unique, mine, waitHD){
   if (!SOLDIER) return null;
   op = sanitizeOp(op);
   const root = new THREE.Group(), model = THREE.SkeletonUtils.clone(SOLDIER.scene);
@@ -9971,8 +10031,10 @@ function buildOperator(op, unique, mine){
   const head = local(B.Head).p.clone().lerp(local(B.HeadTop_End || B.Head).p, .45), sp = local(B.Spine2).p, hp = local(B.Hips).p;
   const R = { neck:local(B.Neck).p, lh:local(B.LeftHand).p, lf:local(B.LeftForeArm).p, rh:local(B.RightHand).p, rf:local(B.RightForeArm).p };
   const glued = [], tails = [];
+  opHeadWait = false;
   opGear(op, head, sp, (bone, grp) => { mergeParts(grp); const r = local(B[bone]); root.add(grp); grp.traverse(c => { if (c.userData.tail) tails.push(c); });
     glued.push({ b:B[bone], grp, p0:r.p.clone(), q0i:r.q.clone().invert(), kids:grp.children.map(c => ({ c, p:c.position.clone().sub(r.p), q:c.quaternion.clone() })) }); }, hp, R);
+  if (waitHD && opHeadWait) root.userData.waitHD = true;
   const mixer = new THREE.AnimationMixer(model);
   const act = n => { const a = mixer.clipAction(SOLDIER.clips[n]); a.play(); a.setEffectiveWeight(n === 'Idle' ? 1 : 0); return a; };
   const armBones = BUILD[1] !== 1 ? [B.LeftArm, B.RightArm].filter(Boolean) : [];
@@ -10078,14 +10140,14 @@ function ensureOpBody(){
   if (!SOLDIER) return null;
   if (opBody && opBodyVer === opVer) return opBody;
   if (opBody) scene.remove(opBody.root);
-  opBody = buildOperator(opMine(), false, true); opBodyVer = opVer;
+  opBody = buildOperator(opMine(), false, true, true); opBodyVer = opVer;
   opBody.root.visible = false; scene.add(opBody.root);
   return opBody;
 }
 function opBodyUpdate(dt){
   const o = (tpBlend > .01 || cfg.view === 'tp') ? ensureOpBody() : opBody;
   if (!o) return;
-  o.root.visible = tpBlend > .3 && !predator;
+  o.root.visible = tpBlend > .3 && !predator && !o.root.userData.waitHD;
   if (!o.root.visible) return;
   const W = cur();
   opSetGun(o, hubMode || rage.t > 0 ? '' : W.id);
@@ -10221,13 +10283,13 @@ function renderOp(){
 }
 function opPreviewRebuild(){
   if (!opPrev) return;
-  const key = JSON.stringify(opMine()) + (SOLDIER ? 1 : 0) + Object.keys(OP_HD).join();
+  const key = JSON.stringify(opMine()) + (SOLDIER ? 1 : 0) + Object.keys(OP_HD).join() + Object.keys(HD_FAIL).join();
   if (opPrev.key === key) return;
   opPrev.key = key;
   if (opPrev.o) opPrev.sc.remove(opPrev.o.root);
-  opPrev.o = buildOperator(opMine());
-  $('opLoading').hidden = !!opPrev.o;
-  if (opPrev.o){ opPrev.sc.add(opPrev.o.root); opSetGun(opPrev.o, WEAPONS[klass.primary] ? WEAPONS[klass.primary].id : 'rifle'); opGunCamo(opPrev.o, WEAPONS[klass.primary]); }
+  opPrev.o = buildOperator(opMine(), false, false, true);
+  $('opLoading').hidden = !!(opPrev.o && !opPrev.o.root.userData.waitHD);
+  if (opPrev.o && !opPrev.o.root.userData.waitHD){ opPrev.sc.add(opPrev.o.root); opSetGun(opPrev.o, WEAPONS[klass.primary] ? WEAPONS[klass.primary].id : 'rifle'); opGunCamo(opPrev.o, WEAPONS[klass.primary]); }
 }
 function openOp(){
   opReturn = state === 'paused' ? 'pausePanel' : 'menu'; show('opPanel');
