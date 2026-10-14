@@ -165,7 +165,7 @@ function updateWeapon(dt){
   const W = cur(), V = W.vm;
   if (swapT > 0){ const before = swapT; swapT += dt*(nextW === 4 || cw === 4 ? 1.5 : 1); if (before < .22 && swapT >= .22) setWeapon(nextW); if (swapT > .48) swapT = 0; }
   if (reloading){
-    reloadT -= dt;
+    reloadT -= dt*(headGear() === 'band' ? 1.25 : 1);
     if (reloadT <= 0){
       if (W.shellReload){
         if (W.ammo < W.c.mag && W.reserve > 0){ W.ammo++; W.reserve--; sfx.shellIn(); }

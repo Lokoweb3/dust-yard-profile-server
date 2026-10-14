@@ -46,7 +46,7 @@ function clearEnemies(){
   for (const p of pickups) scene.remove(p.g); pickups.length = 0;
 }
 function resetGame(){
-  clearEnemies(); mantle = null; sprintRamp = 0; jumpBuf = 0;
+  clearEnemies(); clearSpecials(); mantle = null; sprintRamp = 0; jumpBuf = 0;
   Object.assign(P, { yaw:0, pitch:0, onGround:true, hp:maxHP(), lastHit:-99, moving:false, sprinting:false, crouch:false, slideT:0, ladder:null });
   camH = 1.62; landDip = 0; rollZ = 0; shake = 0; strafeF = 0; mdx = mdy = 0; sway.x = sway.y = 0; slideF = 0; $('tCrouch').classList.remove('on');
   P.pos.set(0,0,36); P.vel.set(0,0,0);

@@ -78,7 +78,9 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
   if (e.type === 'armored' && !head && src !== 'knife' && src !== 'nade' && src !== 'air') dmg *= .5;
   if (e.custom === 'gunship'){ if (src === 'knife' || src === 'claw' || src === 'stampede') dmg = 0; else if (src !== 'nade' && src !== 'air') dmg *= head ? .25 : .1; }
   else if (e.type === 'boss'){ if (src === 'knife') dmg = 120; else if (src === 'claw') dmg = Math.min(dmg, 200); else if (!head && src !== 'nade' && src !== 'air') dmg *= .4; }
-  if (e.custom && e.actCode === 3 && e.custom === 'elephant') dmg *= 2;   // a dazed War Elephant takes double damage
+  if (e.custom && e.actCode === 3 && e.custom === 'elephant') dmg *= 2;
+  if ((src === 'knife' || src === 'claw') && headGear() === 'kabuto') dmg *= 1.5;   // Shogun crest
+  if (specOn('fox') && (!src || src === 'knife')){ if (src === 'knife') dmg *= 3; endSpecial(); }   // attacking ends Vanish; a knife from hiding hits three times as hard   // a dazed War Elephant takes double damage
   if (coop && coop.guest && e.remote) coopNoteHit(e, dmg);
   e.hp -= dmg; e.flash = 0.08; e.flinch = 0.18; e.sees = true; e.reaction = Math.min(e.reaction, 0.25);
   const killed = e.hp <= 0;
@@ -108,6 +110,7 @@ function damageEnemy(e, dmg, head, dir, src, part, blast){
       debris.push({ obj:r, vel:new V3(dir.x*1.5 + (Math.random()-.5), 1.5, dir.z*1.5 + (Math.random()-.5)), spin:new V3((Math.random()-.5)*6, 0, (Math.random()-.5)*6), life:2.9 });
     }
     if (src === 'claw' || rage.t > 0) rageKill();
+    specialKill();
     const LBL = { stampede:'Stampede kill', claw:'Claw kill', knife:'Knife kill', nade:'Grenade kill', air:'Airstrike kill', drone:'Drone kill', pet:'Companion kill' };
     const pts = Math.round((src === 'knife' || src === 'claw' ? 150 : src === 'nade' ? 120 : src === 'air' || src === 'drone' || src === 'pet' || src === 'stampede' ? 75 : head ? 150 : 100)*(e.scoreMul || 1)); if (head) headshots++;
     const tn = e.type === 'armored' ? 'Armored down' : e.type === 'sniper' ? 'Sniper down' : e.type === 'rusher' ? 'Rusher down' : 'Enemy down';
@@ -141,6 +144,8 @@ function damagePlayer(d, from, explosive){
   if (tdm && (tdm.protT > 0 || tdm.over)) return;
   if (pounce) return;                 // can't be hit mid-leap
   if (rage.t > 0) d *= .25;           // Apex Form: 75% less damage
+  if (specOn('bear')) d *= .4;        // Iron Hide: 60% less
+  if (specOn('panda')) d *= .5;       // Rolling Thunder: half
   if (tut) return;
   if (explosive && perk('armor')) d *= .65;
   P.hp -= d; P.lastHit = T; sfx.hurt(); rumble(.8, .3, 160);
