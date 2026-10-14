@@ -357,6 +357,7 @@ body.tdm #waveInfo, body.tdm #bossBar{ display:none !important; }
 #tAim.on{ background:rgba(240,169,59,.5) !important; }
 #tReload{ width:60px; height:60px; right:calc(136px + env(safe-area-inset-right,0px)); bottom:calc(84px + env(safe-area-inset-bottom,0px)); }
 #tJump{ width:60px; height:60px; right:calc(44px + env(safe-area-inset-right,0px)); bottom:calc(220px + env(safe-area-inset-bottom,0px)); }
+#tGear{ width:56px; height:56px; right:calc(112px + env(safe-area-inset-right,0px)); bottom:calc(240px + env(safe-area-inset-bottom,0px)); }
 #tCrouch{ width:60px; height:60px; right:calc(222px + env(safe-area-inset-right,0px)); bottom:calc(120px + env(safe-area-inset-bottom,0px)); }
 #tCrouch.on{ background:rgba(240,169,59,.5) !important; }
 #tPause{ width:auto !important; height:auto !important; border-radius:4px !important; padding:6px 12px; left:calc(14px + env(safe-area-inset-left,0px)); top:calc(186px + env(safe-area-inset-top,0px)); }
@@ -427,6 +428,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
   <button id="tAim" aria-label="Aim">Aim</button>
   <button id="tReload" aria-label="Reload">Reload</button>
   <button id="tJump" aria-label="Jump">Jump</button>
+  <button id="tGear" aria-label="Use back gear">Gear</button>
   <button id="tCrouch" aria-label="Crouch or slide">Crouch</button>
   <button id="tSwap" aria-label="Switch weapon">Swap</button>
   <button id="tNade" aria-label="Throw frag grenade">Frag</button>
@@ -495,7 +497,7 @@ kbd{ font:600 15px 'Barlow Condensed',sans-serif; background:var(--plate); borde
       <kbd>Swap</kbd><span>Switch weapon</span>
     </div>
     <div class="keys" id="keysPad">
-      <kbd>PS5 controller</kbd><span>Left stick moves, right stick looks, R2 shoots, L2 aims, Square reloads, X jumps (jump into low cover to climb it; with a Jetpack, hold X in the air to fly; with Air tanks, press X again in mid-air), Circle crouches or slides, L3 sprints, R3 knife (a sword slash with the Katana), R1 frag, L1 tactical, D-pad left switches tactical, D-pad up/right/down call killstreaks, Triangle switches weapon, Options pauses</span>
+      <kbd>PS5 controller</kbd><span>Left stick moves, right stick looks, R2 shoots, L2 aims, Square reloads, X jumps (jump into low cover to climb it), hold Triangle uses your back gear (Jetpack: hold X in the air to fly; Air tanks: press X again in mid-air; Katana: R2 slashes for 30 s), Circle crouches or slides, L3 sprints, R3 knife, R1 frag, L1 tactical, D-pad left switches tactical, D-pad up/right/down call killstreaks, Triangle switches weapon, Options pauses</span>
     </div>
     </details>
     <div class="best" id="padLine"></div>
@@ -4799,7 +4801,7 @@ const slashArc = new THREE.Mesh(new THREE.RingGeometry(.5, .6, 32, 1, Math.PI*.0
 slashArc.position.set(0, -.1, -.75); slashArc.rotation.z = -.2; slashArc.visible = false; gunCam.add(slashArc);
 const KATANA_KEYS = [[0,[.3,-.28,-.36, -.6,-.9,-.9]],[.3,[.28,-.14,-.46, -1.15,-.8,-.6]],[.5,[.02,-.18,-.54, -1.35,0,0]],[.7,[-.24,-.24,-.46, -1.2,.9,.6]],[1,[.28,-.58,-.3, -.4,0,-.6]]];
 const KNIFE_KEYS = [[0,[.3,-.42,-.25, .4,0,-1.0]],[.25,[.08,-.16,-.42, -.5,.2,.3]],[.5,[-.15,-.18,-.4, -.9,.5,1.1]],[1,[.32,-.52,-.2, 0,0,-.6]]];
-const meleeLen = () => (spPower() === 'tiger' ? .32 : .5) + (backGear() === 'katana' ? .12 : 0);
+const meleeLen = () => (spPower() === 'tiger' ? .32 : .5) + (katanaOn() ? .12 : 0);
 // the katana hits everything in a wide arc in front of you, not just one raider
 function katanaStrike(){
   const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)), reach = (perk('commando') ? 4.8 : 3.4) + (spPower() === 'tiger' ? .8 : 0);
@@ -4825,7 +4827,7 @@ function startMelee(){
   }
 }
 function meleeStrike(){
-  if (backGear() === 'katana') return katanaStrike();
+  if (katanaOn()) return katanaStrike();
   const f = new V3(-Math.sin(P.yaw), 0, -Math.cos(P.yaw)); let best = null, bd = (perk('commando') ? 4.4 : 2.6) + (spPower() === 'tiger' ? .8 : 0);
   for (const e of enemies){
     if (!e.alive) continue;
@@ -5394,12 +5396,16 @@ function updateCombat(dt){
   // knife
   if (meleeT > 0){
     meleeT -= dt;
-    const kat = backGear() === 'katana', G = kat ? katanaG : knifeG, p = Math.min(1, 1 - meleeT/meleeLen()), k = keyframe(kat ? KATANA_KEYS : KNIFE_KEYS, p);
+    const kat = katanaOn(), G = kat ? katanaG : knifeG, p = Math.min(1, 1 - meleeT/meleeLen()), k = keyframe(kat ? KATANA_KEYS : KNIFE_KEYS, p);
     G.visible = true; G.position.set(k[0],k[1],k[2]); G.rotation.set(k[3],k[4],k[5]);
     slashArc.visible = kat && p > .3 && p < .75; if (slashArc.visible) slashArc.material.opacity = Math.sin((p - .3)/.45*Math.PI)*.55;
     if (!meleeHit && p > (kat ? .42 : .3)){ meleeHit = true; meleeStrike(); }
     if (meleeT <= 0){ meleeT = 0; knifeG.visible = false; katanaG.visible = false; slashArc.visible = false; }
-  }
+  } else if (katanaOn() && !scoped){
+    // between swings the sword is held ready at your right side
+    katanaG.visible = true; const b = Math.sin(T*2)*.006, s2 = P.sprinting ? .08 : 0;
+    katanaG.position.set(.22, -.32 + b - s2, -.46); katanaG.rotation.set(-.7 - s2*2, -.15, .25);
+  } else katanaG.visible = false;
 }
 
 
@@ -6027,6 +6033,43 @@ let state = 'menu', T = 0;
 let reloading = false, reloadT = 0, lastShot = -9, shotsInRow = 0, recoilAcc = 0, kick = 0, kickR = 0, flashT = 0;
 let coyoteT = 0, jumpBuf = 0, mantle = null, sprintRamp = 0, stepSide = 1;
 const jet = { fuel:1, on:false, fx:0, ground:0, boost:true };
+// Back gear with an ability: activate it, use it for a while, then it recharges
+const GEAR_AB = { jetpack:{ name:'Jetpack', dur:10, cd:30, col:'#7fd3ff' }, tanks:{ name:'Air tanks', dur:12, cd:25, col:'#dfe8f0' }, katana:{ name:'Katana', dur:30, cd:45, col:'#ffd08a' } };
+const gearAb = { t:0, cd:0, k:'' };
+const gearActive = k => gearAb.t > 0 && gearAb.k === k;
+const katanaOn = () => gearActive('katana');
+function useGear(){
+  const k = backGear(), d = GEAR_AB[k];
+  if (!d || state !== 'play' || hubMode || P.dead || P.down) return false;
+  if (gearAb.t > 0) return true;
+  if (gearAb.cd > 0){ toast(`${d.name} recharging: ${Math.ceil(gearAb.cd)} s`, 1500); return true; }
+  gearAb.k = k; gearAb.t = d.dur; gearAb.cd = 0;
+  banner(d.name); sfx.swap(); blast(.2, 1800, .3, true, 0, 90);
+  if (k === 'katana'){ reloading = false; ads = false; inspectT = 0; toast(isTouch ? 'Katana! Tap Fire to slash.' : padActive ? 'Katana! R2 to slash.' : 'Katana! Click to slash.', 2500); }
+  if (k === 'jetpack') toast(padActive ? 'Jetpack! Jump, then hold X to fly.' : 'Jetpack! Jump, then hold Space to fly.', 2500);
+  if (k === 'tanks') toast(padActive ? 'Air tanks! Press X again in mid-air to boost.' : 'Air tanks! Press Space again in mid-air to boost.', 2500);
+  return true;
+}
+function updateGearAb(dt){
+  if (gearAb.t > 0){
+    gearAb.t -= dt;
+    if (gearAb.t <= 0){ gearAb.t = 0; gearAb.cd = GEAR_AB[gearAb.k].cd; feed(`${GEAR_AB[gearAb.k].name} recharging`); }
+  } else if (gearAb.cd > 0){ gearAb.cd = Math.max(0, gearAb.cd - dt); if (!gearAb.cd) feed(`${GEAR_AB[gearAb.k].name} ready`, true); }
+  // HUD: what the ability is doing, and a bar for the time left or the recharge
+  const d = GEAR_AB[backGear()];
+  if (!gearAb.hud){ gearAb.hud = document.createElement('div'); gearAb.hud.style.cssText = 'position:absolute;left:50%;top:104px;width:220px;margin-left:-110px;text-align:center;pointer-events:none;font:700 15px "Barlow Condensed",sans-serif;letter-spacing:.06em;color:#f4ecdc;text-shadow:0 1px 3px #000';
+    gearAb.txt = document.createElement('div'); const bg = document.createElement('div'); bg.style.cssText = 'height:6px;margin-top:3px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden';
+    gearAb.bar = document.createElement('div'); gearAb.bar.style.cssText = 'height:100%;width:0'; bg.appendChild(gearAb.bar); gearAb.hud.append(gearAb.txt, bg); $('hud').appendChild(gearAb.hud); }
+  gearAb.hud.style.display = d && !hubMode ? 'block' : 'none';
+  if (gearAb.touch) gearAb.touch.style.display = d && !hubMode ? '' : 'none';
+  if (!d) return;
+  const key = isTouch ? 'GEAR' : padActive ? 'HOLD △' : 'F';
+  const on = gearAb.t > 0 && gearAb.k === backGear(), cd = gearAb.cd > 0 && gearAb.k === backGear();
+  gearAb.txt.textContent = on ? `${d.name.toUpperCase()} · ${Math.ceil(gearAb.t)} s` : cd ? `${d.name.toUpperCase()} · RECHARGING ${Math.ceil(gearAb.cd)} s` : `${key} · ${d.name.toUpperCase()} READY`;
+  gearAb.bar.style.width = (on ? gearAb.t/d.dur*100 : cd ? (1 - gearAb.cd/d.cd)*100 : 100).toFixed(1) + '%';
+  gearAb.bar.style.background = on ? d.col : cd ? 'rgba(255,255,255,.45)' : '#f0a93b';
+  if (gearAb.touch) gearAb.touch.style.opacity = on || cd ? .45 : 1;
+}
 let fireQueued = false, actionT = 0, actionDone = 0, swapT = 0, nextW = 0, inspectT = 0, relEnv = 0, breath = 4, lastStep = 0, scoped = false, steadyF = 0;
 const _mz = new V3(), _iq = new THREE.Quaternion();
 let firing = false, ads = false, bobT = 0, sprintF = 0, adsF = 0, slideF = 0;
@@ -6195,7 +6238,7 @@ function shoot(){
   if (W.action && W.ammo > 0){ actionT = W.actionTime; actionDone = 0; (W.action === 'pump' ? sfx.pump : sfx.bolt)(); }
 }
 function reload(){
-  if (hubMode) return;
+  if (hubMode || katanaOn()) return;
   const W = cur();
   if (state !== 'play' || reloading || W.ammo >= W.c.mag || W.reserve <= 0 || swapT > 0 || meleeT > 0 || aimNade) return;
   reloading = true; actionT = 0; inspectT = 0;
@@ -6236,6 +6279,7 @@ function updateWeapon(dt){
   if (inspectT > 0) inspectT = Math.max(0, inspectT - dt);
   if (predator){ if (firing) predator.boost = true; }
   else if (rage.t > 0){ if (firing) clawSwipe(); fireQueued = false; }
+  else if (katanaOn()){ if (firing && meleeT <= 0) startMelee(); fireQueued = false; ads = false; }
   else if (firing && (W.auto || fireQueued) && canFire()){ shoot(); fireQueued = false; }
   if (!firing && T - lastShot > 0.25) shotsInRow = 0;
 }
@@ -6611,11 +6655,11 @@ function updatePlayer(dt){
     }
     const gear = backGear();
     // Jetpack: hold Jump in the air to fly until the fuel runs out; it refills on the ground
-    jet.on = gear === 'jetpack' && jumpKey && !P.onGround && coyoteT <= 0 && jet.fuel > 0 && !P.ladder && rage.t <= 0;
-    if (jet.on){ P.vel.y = Math.min(5.5, P.vel.y + 30*dt); jet.fuel = Math.max(0, jet.fuel - dt/2.6); }
-    if (P.onGround){ jet.ground += dt; if (jet.ground > .4) jet.fuel = Math.min(1, jet.fuel + dt/2.5); jet.boost = true; } else jet.ground = 0;
+    jet.on = gear === 'jetpack' && gearActive('jetpack') && jumpKey && !P.onGround && coyoteT <= 0 && !P.ladder && rage.t <= 0;
+    if (jet.on) P.vel.y = Math.min(5.5, P.vel.y + 30*dt);
+    if (P.onGround) jet.boost = true;
     // Air tanks: one extra boost per jump, up and in the direction you're moving
-    if (gear === 'tanks' && jumpPress && !P.onGround && coyoteT <= 0 && jet.boost && rage.t <= 0){
+    if (gear === 'tanks' && gearActive('tanks') && jumpPress && !P.onGround && coyoteT <= 0 && jet.boost && rage.t <= 0){
       jet.boost = false; P.vel.y = 7; const l = Math.hypot(tx, tz) || 1, k = Math.min(1, l); P.vel.x += tx/l*4*k; P.vel.z += tz/l*4*k;
       for (let i=0;i<6;i++) spawnPuff(new V3(P.pos.x + (Math.random() - .5)*.6, P.pos.y + .3, P.pos.z + (Math.random() - .5)*.6), 0xdfe8f0, .35, .5, -.6);
       blast(.12, 2600, .22, false); landDip = .04;
@@ -6673,11 +6717,7 @@ function findMantle(s, c){
   return null;
 }
 function updateJet(dt){
-  const show = backGear() === 'jetpack' && !hubMode;
-  if (!jet.hud){ jet.hud = document.createElement('div'); jet.hud.style.cssText = 'position:absolute;left:50%;bottom:112px;width:140px;height:6px;margin-left:-70px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden;pointer-events:none';
-    jet.bar = document.createElement('div'); jet.bar.style.cssText = 'height:100%;width:100%;background:#7fd3ff'; jet.hud.appendChild(jet.bar); $('hud').appendChild(jet.hud); }
-  jet.hud.style.display = show && (jet.on || jet.fuel < 1) ? 'block' : 'none';
-  jet.bar.style.width = (jet.fuel*100).toFixed(1) + '%'; jet.bar.style.background = jet.fuel < .2 ? '#ff6a4a' : '#7fd3ff';
+  updateGearAb(dt);
   if (!jet.on) return;
   jet.fx -= dt;
   if (jet.fx <= 0){ jet.fx = .05;
@@ -6788,7 +6828,7 @@ function update(dt){
     V.right.position.set(V.rightRest.x + V.boltReach.x*reach, V.rightRest.y + V.boltReach.y*reach, V.rightRest.z + V.boltReach.z*reach + back*.08*reach);
     gun.rotation.z += reach*.12; gun.rotation.x += reach*.05;
   }
-  gun.visible = !scoped && !hubMode && !predator && rage.t <= 0; if (V.rocketHead) V.rocketHead.visible = W.ammo > 0;
+  gun.visible = !scoped && !hubMode && !predator && rage.t <= 0 && !katanaOn(); if (V.rocketHead) V.rocketHead.visible = W.ammo > 0;
   if (V.slide){ slideKick *= Math.exp(-dt*28); V.slide.position.z = W.ammo === 0 ? .035 : slideKick*.035; }
   flashT -= dt; V.flash.visible = flashT > 0;
   muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt*40);
@@ -6851,7 +6891,7 @@ function resetGame(){
   P.pos.set(0,0,36); P.vel.set(0,0,0);
   WEAPONS.forEach(W => { applyAtt(W); W.ammo = W.c.mag; W.reserve = W.res; });
   streak = 0; uavT = 0; airAim = false; airMark.visible = false; sInv.uav = sInv.air = sInv.drone = sInv.care = sInv.predator = sInv.pounce = sInv.stampede = sInv.apex = 0; rage.t = 0; rageFx = 0; apexK = 0; pounce = null; clearStampedes(); endPredator(false); for (const c of careCrates) scene.remove(c.g); careCrates.length = 0;
-  fragN = (perk('frag3') ? 3 : 2) + (backGear() === 'pack' ? 1 : 0); tacN = (perk('tac3') ? 3 : 2) + (backGear() === 'pack' ? 1 : 0); gameXP = 0; jet.fuel = 1; jet.on = false; jet.boost = true;
+  fragN = (perk('frag3') ? 3 : 2) + (backGear() === 'pack' ? 1 : 0); tacN = (perk('tac3') ? 3 : 2) + (backGear() === 'pack' ? 1 : 0); gameXP = 0; jet.on = false; jet.boost = true; gearAb.t = 0; gearAb.cd = 0;
   if (perk('uavstart')) sInv.uav = 1; if (perk('airstart')) sInv.air = 1;
   WEAPONS.forEach(W => { const m = (perk('reserve') ? 1.3 : 1)*(backGear() === 'pack' ? 1.25 : 1); W.res = Math.round(RES[W.id][0]*m); W.maxRes = Math.round(RES[W.id][1]*m); W.reserve = W.res; applyCamo(W); }); aimNade = null; throwT = 0; meleeT = 0; flashFx = 0; katanaG.visible = false; slashArc.visible = false; knifeG.visible = false; arcLine.visible = arcRing.visible = false; reloading = false; shotsInRow = 0; recoilAcc = 0; kick = 0; kickR = 0; firing = false; ads = false; $('tAim').classList.remove('on');
   actionT = 0; swapT = 0; inspectT = 0; fireQueued = false; breath = 4; lastShot = -9; setWeapon(startW); gunBase.copy(cur().vm.hip);
@@ -9736,7 +9776,7 @@ const OP_ACCENT = [['red','Red',0xd23c3c], ['orange','Orange',0xff8a2a], ['yello
   ['blue','Blue',0x2f6bff], ['pink','Pink',0xff3cc8], ['white','White',0xeeeeee], ['black','Black',0x1a1a1a]];
 const OP_VISOR = [['smoke','Smoke',0x1c2026], ['mirror','Gold mirror',0xd8a93a], ['cyan','Cyan glow',0x2ee6ff,0,1], ['red','Red glow',0xff3344,0,1], ['green','Green glow',0x5cff8a,0,1], ['purple','Purple glow',0xb45cff,0,1]];
 const OP_HEAD = [['none','None','Clean helmet'], ['nvg','Night vision','Flipped-up goggles'], ['antenna','Comms','Radio antenna'], ['band','Ninja band','X1 Ninja headband'], ['kabuto','Shogun crest','Golden horns']];
-const OP_BACK = [['none','None','Nothing on the back'], ['jetpack','Jetpack','Hold Jump in the air to fly'], ['katana','Katana','Melee becomes a wide sword slash'], ['pack','Assault pack','+1 grenade of each kind, 25% more spare ammo'], ['radio','Radio','Killstreaks need 1 kill less'], ['tanks','Air tanks','Press Jump again in mid-air for a boost']];
+const OP_BACK = [['none','None','Nothing on the back'], ['jetpack','Jetpack','Activate (F / hold Triangle) to fly for 10 s'], ['katana','Katana','Activate (F / hold Triangle) to fight with the sword for 30 s'], ['pack','Assault pack','+1 grenade of each kind, 25% more spare ammo'], ['radio','Radio','Killstreaks need 1 kill less'], ['tanks','Air tanks','Activate (F / hold Triangle) for mid-air boosts for 12 s']];
 // ---- operator types: armored, human soldier, alien, animal ----
 const OP_KIND = [['armor','Armored','Sci-fi battle armor'], ['human','Soldier','Human special forces'], ['alien','Alien','Space suit and glass dome'], ['animal','Animal','Animal in combat gear']];
 const OP_SKIN = [['light','Light',0xf1c9a5], ['tan','Tan',0xc99872], ['brown','Brown',0x8d5a3b], ['dark','Dark',0x5a3a26]];
@@ -10243,7 +10283,7 @@ function opBodyUpdate(dt){
   o.root.visible = tpBlend > .3 && !predator && !o.root.userData.waitHD;
   if (!o.root.visible) return;
   const W = cur();
-  opSetGun(o, hubMode || rage.t > 0 ? '' : W.id);
+  opSetGun(o, hubMode || rage.t > 0 || katanaOn() ? '' : W.id);
   if (o.bodyU) o.bodyU.uRage.value = rageFx;
   if (o.gun && o.gunCamo !== W.camo + '|' + W.id){ o.gunCamo = W.camo + '|' + W.id; opGunCamo(o, W); }
   o.root.position.set(P.pos.x, P.pos.y, P.pos.z);
@@ -10899,7 +10939,7 @@ addEventListener('keydown', e => {
     if (!e.repeat && e.code === 'KeyV') startMelee();
     const si = { Digit7:0, Digit8:1, Digit9:2 }[e.code]; if (si !== undefined && STREAKS[si]) useStreak(STREAKS[si].k);
     if (e.code === 'KeyB' && !e.repeat) toggleView();
-    if (e.code === 'KeyF' && !reloading && swapT === 0 && actionT <= 0) inspectT = 2.6;
+    if (e.code === 'KeyF' && !e.repeat && !useGear() && !reloading && swapT === 0 && actionT <= 0) inspectT = 2.6;
     if (e.code === 'KeyC' && !e.repeat) crouchPress();
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
     if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
@@ -10954,6 +10994,8 @@ tbtn('tFire', e => { firing = true; fireQueued = true; const t = e.changedTouche
 tbtn('tAim', () => { ads = !ads; $('tAim').classList.toggle('on', ads); });
 tbtn('tReload', () => reload());
 tbtn('tJump', () => { touch.jump = true; });
+tbtn('tGear', () => { useGear(); });
+gearAb.touch = $('tGear');
 // the touch Jump button can be held too (jetpack)
 $('tJump').addEventListener('pointerdown', () => { touch.jumpHeld = true; });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('tJump').addEventListener(ev, () => { touch.jumpHeld = false; });
@@ -11034,7 +11076,7 @@ addEventListener('resize', () => {
 
 /* ---------- Gamepad (PS5 DualSense / any standard controller) ---------- */
 // Standard mapping: 0 Cross, 1 Circle, 2 Square, 3 Triangle, 4 L1, 5 R1, 6 L2, 7 R2, 9 Options, 10 L3, 11 R3
-let padJumpHeld = false;
+let padJumpHeld = false, padTriT = 0, padTriUsed = false;
 let padPrev = [], padActive = false, padSprint = false, padMove = { x:0, y:0 }, padIndex = null;
 function dz(v, d=.14){ const a = Math.abs(v); if (a < d) return 0; return Math.sign(v) * Math.pow((a-d)/(1-d), 1.6); }
 function rumble(strong, weak, ms){
@@ -11163,7 +11205,11 @@ function pollPad(dt){
     P.yaw -= rx * 3.4 * k * dt; P.pitch -= ry * 2.5 * k * dt; clampPitch();
     mdx += rx * 14; mdy += ry * 10;
     if (pressed(7)){ firing = true; fireQueued = true; }  if (released(7)) firing = false;   // R2 shoot
-    if (pressed(3)){ if (hubMode) openPhone(); else cycleWeapon(1); }  // Triangle swap / phone
+    if (hubMode){ if (pressed(3)) openPhone(); }                     // Triangle: phone in the market
+    else {                                                              // Triangle: tap to swap weapon, hold to use back gear
+      if (now[3]){ padTriT += dt; if (padTriT > .4 && !padTriUsed){ padTriUsed = true; if (!useGear()) cycleWeapon(1); } }
+      if (released(3)){ if (!padTriUsed) cycleWeapon(1); padTriT = 0; padTriUsed = false; }
+    }
     if (pressed(8) && !reloading) inspectT = 2.6;                       // Create button inspect
     if (hubMode){ if (pressed(12)) doEmote(0); if (pressed(15)) doEmote(1); if (pressed(13)) doEmote(2); if (pressed(14)) doEmote(3); }
     else { [[12, 0], [15, 1], [13, 2]].forEach(([b, i]) => { if (pressed(b) && STREAKS[i]) useStreak(STREAKS[i].k); }); }
