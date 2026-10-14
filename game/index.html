@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dust Yard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Saira+Stencil+One&display=swap" rel="stylesheet">
+<style>
+{{styles}}</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud" hidden>
+  <div id="scope"><div class="ring"></div><i class="post"></i><i class="h"></i><i class="v"></i><i class="vp"></i><b></b></div>
+  <div id="lens"></div>
+  <canvas id="compass" aria-hidden="true"></canvas>
+  <canvas id="minimap" aria-hidden="true"></canvas>
+  <div id="splash"><b>+100</b><span>Enemy down</span></div>
+  <div id="bossBar" hidden><b>Degen Juggernaut</b><div><i id="bossFill"></i></div></div>
+  <div id="xpBar"><i id="xpFill"></i></div>
+  <div id="waveInfo"><span id="waveNum">Wave 1</span><span id="leftNum"></span></div>
+  <div id="scoreBox"><div id="score">0</div><div id="feed"></div></div>
+  <div id="cross"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
+  <div id="hitm"><i></i><i></i><i></i><i></i></div>
+  <div id="tdmBar" hidden><div class="tdmSide us"><b>YOU</b><em id="tdmUs">0</em><div class="tdmTrack"><i id="tdmUsBar"></i></div></div><span id="tdmTime">10:00</span><div class="tdmSide them"><b>RAIDERS</b><em id="tdmThem">0</em><div class="tdmTrack"><i id="tdmThemBar"></i></div></div></div>
+  <div id="deathFlash"></div>
+  <div id="banner"></div>
+  <div id="health"><span id="lvBadge">1</span><div id="hpBar"><div id="hpFill"></div></div><span id="hpNum">100</span></div>
+  <div id="ammo"><div id="slots"><span><kbd>1</kbd>Rifle</span><span><kbd>2</kbd>SMG</span><span><kbd>3</kbd>Shotgun</span><span><kbd>4</kbd>Sniper</span><span><kbd>5</kbd>Pistol</span><span><kbd>6</kbd>RPG</span></div><div id="wname">KR-7 Carbine</div><div><span id="ammoNum">30</span><span id="ammoMax">/ 30</span></div><div id="pips"></div><div id="reloadHint"></div><div id="equip"><span id="eqFrag"></span><span id="eqTac"></span></div></div>
+  <div id="flashOv"></div>
+  <div id="plazaCount" class="hubOnly"></div>
+  <div id="hubPrompt" class="hubOnly" hidden>Press E to open the market</div>
+  <div id="streaks"><div id="streakNum">Streak 0</div><span></span><span></span><span></span></div>
+  <div id="nadeWarn"><div class="nwPos"><div class="nwIco">!</div></div></div>
+  <div id="vignette"></div>
+  <div id="dmgLayer"></div>
+</div>
+
+<div id="touch" hidden>
+  <div id="lookPad"></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <button id="tFire" aria-label="Fire">Fire</button>
+  <button id="tAim" aria-label="Aim">Aim</button>
+  <button id="tReload" aria-label="Reload">Reload</button>
+  <button id="tJump" aria-label="Jump">Jump</button>
+  <button id="tGear" aria-label="Use back gear">Gear</button>
+  <button id="tCrouch" aria-label="Crouch or slide">Crouch</button>
+  <button id="tSwap" aria-label="Switch weapon">Swap</button>
+  <button id="tNade" aria-label="Throw frag grenade">Frag</button>
+  <button id="tTac" aria-label="Throw tactical grenade">Tac</button>
+  <button id="tKnife" aria-label="Knife">Knife</button>
+  <button id="tRevive" aria-label="Revive teammate" hidden>Revive</button>
+  <button id="tStreak" aria-label="Use killstreak">Streak</button>
+  <button id="tChat" aria-label="Chat" class="hubOnly">Chat</button>
+  <button id="tTrade" aria-label="Trade" class="hubOnly">Trade</button>
+  <button id="tPhone" aria-label="Phone" class="hubOnly">Phone</button>
+  <button id="tPause" aria-label="Pause">Pause</button>
+</div>
+
+<div id="overlay">
+  <section id="menu">
+    <h1>Dust Yard</h1>
+    <p class="lede">Fast firefights in your browser: Team Deathmatch, wave survival and Gun Game.</p>
+    <div class="playRow"><button class="btn bigPlay" id="deployBtn">Play</button><button class="btn ghost" id="classBtn">Create-a-Class</button><button class="btn ghost" id="opBtn">Operator</button><button class="btn ghost" id="tutBtn">Training</button></div>
+    <div class="prof"><div><b id="profHead">Level 1 Recruit</b><div class="profBar"><i id="profFill"></i></div><span id="profSub"></span></div></div>
+    <div id="dailyBox"></div>
+    <p class="pick">Mode</p>
+    <div class="loadout modes" id="modePick">
+      <button data-g="waves"><b>Wave Survival</b><span>Hold out as long as you can</span></button>
+      <button data-g="tdm"><b>Team Deathmatch</b><span>Respawns, first to 7,500</span></button>
+      <button data-g="gungame"><b>Gun Game</b><span>A new gun with every kill</span></button>
+      <button data-g="coop"><b>Co-op</b><span>Waves with 2 to 4 friends</span></button>
+    </div>
+    <p class="pick">Map</p>
+    <div class="loadout maps" id="mapPick">
+      <button data-m="yard"><b>Dust Yard</b><span>Shipping yard at dusk</span></button>
+      <button data-m="neon"><b>Neon District</b><span>Rainy city at night</span></button>
+      <button data-m="jungle"><b>Jungle Ruins</b><span>Temple ruins in the rain</span></button>
+    </div>
+    <div class="loadout" id="loadout" hidden>
+      <button data-w="0" class="on"><b>KR-7 Carbine</b><span>Assault rifle</span></button>
+      <button data-w="1"><b>VX-9 SMG</b><span>Fast, close range</span></button>
+      <button data-w="2"><b>M-12 Pump</b><span>Shotgun</span></button>
+      <button data-w="3"><b>LR-50</b><span>Sniper rifle</span></button>
+    </div>
+    <div class="moreRow"><button class="btn ghost" id="hubBtn">Degen Market</button><button class="btn ghost" id="phoneMenuBtn">Phone</button><button class="btn ghost" id="acctMenuBtn">Account</button><button class="btn ghost" id="gsMenuBtn">Gunsmith</button><button class="btn ghost" id="setMenuBtn">Settings</button></div>
+    <details id="ctrlBox"><summary>Controls</summary>
+    <div class="keys" id="keysDesk">
+      <kbd>Arrow keys</kbd><span>Move (W A S D also works)</span>
+      <kbd>Mouse</kbd><span>Look</span>
+      <kbd>Left click</kbd><span>Shoot (hold for full auto)</span>
+      <kbd>Right click</kbd><span>Aim down sights</span>
+      <kbd>0</kbd><span>Reload</span>
+      <kbd>Shift</kbd><span>Sprint</span>
+      <kbd>Space</kbd><span>Jump</span>
+      <kbd>C</kbd><span>Crouch, or slide while sprinting</span>
+      <kbd>1 – 6</kbd><span>Rifle, SMG, shotgun, sniper, pistol, RPG launcher (or mouse wheel)</span>
+      <kbd>G</kbd><span>Hold to aim a frag grenade, release to throw</span>
+      <kbd>Q</kbd><span>Throw tactical (T switches smoke and flashbang)</span>
+      <kbd>V</kbd><span>Knife attack</span>
+      <kbd>7 8 9</kbd><span>Killstreaks from your class (Create-a-Class)</span>
+      <kbd>F</kbd><span>Inspect weapon</span>
+      <kbd>B</kbd><span>Switch first and third person</span>
+      <kbd>Esc</kbd><span>Pause</span>
+    </div>
+    <div class="keys" id="keysTouch" hidden>
+      <kbd>Left thumb</kbd><span>Drag to move, push all the way up to sprint</span>
+      <kbd>Right thumb</kbd><span>Drag to look</span>
+      <kbd>Fire</kbd><span>Hold to shoot, drag it to aim while firing</span>
+      <kbd>Aim</kbd><span>Toggle aim down sights</span>
+      <kbd>Crouch</kbd><span>Crouch, or slide while sprinting</span>
+      <kbd>Swap</kbd><span>Switch weapon</span>
+    </div>
+    <div class="keys" id="keysPad">
+      <kbd>PS5 controller</kbd><span>Left stick moves, right stick looks, R2 shoots, L2 aims, Square reloads, X jumps (jump into low cover to climb it), hold Triangle uses your back gear (Jetpack: hold X in the air to fly; Air tanks: press X again in mid-air; Katana: R2 slashes for 30 s), Circle crouches or slides, L3 sprints, R3 knife, R1 frag, L1 tactical, D-pad left switches tactical, D-pad up/right/down call killstreaks, Triangle switches weapon, Options pauses</span>
+    </div>
+    </details>
+    <div class="best" id="padLine"></div>
+    <div id="fileNote" hidden><b>You opened the game as a file.</b> The X1 wallet, live balance and controller need the game to be opened from a web address. Drag this file onto app.netlify.com/drop (renamed to index.html) and play from the link it gives you.</div>
+    <div class="best" id="bestLine"></div>
+    <div class="lb" id="lbBox" hidden><b id="lbTitle">Leaderboard</b><div id="lbList"></div></div>
+    <p class="legalLinks"><a data-legal="terms" target="_blank" rel="noopener">Terms</a> · <a data-legal="privacy" target="_blank" rel="noopener">Privacy</a> · <a data-legal="risk" target="_blank" rel="noopener">Crypto risks</a> · <a data-legal="drop-rates" target="_blank" rel="noopener">Drop rates</a></p>
+  </section>
+  <section id="coopPanel" hidden>
+    <h2>Co-op</h2>
+    <div id="coopBody"></div>
+    <button class="btn ghost" id="coopBack">Back</button>
+  </section>
+  <section id="opPanel" hidden>
+    <h2>Operator</h2>
+    <div class="opWrap"><div class="opStage"><canvas id="opCanvas" aria-label="Your operator, drag to turn"></canvas><div id="opLoading">Loading operator...</div><small>Drag to turn, scroll to zoom</small></div><div id="opBody"></div></div>
+    <button class="btn" id="opBack">Done</button>
+  </section>
+  <section id="classPanel" hidden>
+    <h2>Create-a-Class</h2>
+    <div id="classBody"></div>
+    <button class="btn" id="classBack">Done</button>
+  </section>
+  <section id="pausePanel" hidden>
+    <h2>Paused</h2>
+    <p class="stat" id="pauseStat"></p>
+    <button class="btn" id="resumeBtn">Resume</button><button class="btn ghost" id="gsPauseBtn">Gunsmith</button><button class="btn ghost" id="setPauseBtn">Settings</button><button class="btn ghost" id="phonePauseBtn">Phone</button><button class="btn ghost" id="acctPauseBtn">Account</button><button class="btn ghost" id="classPauseBtn">Class</button><button class="btn ghost" id="opPauseBtn">Operator</button><button class="btn ghost" id="quitBtn">Quit to menu</button>
+  </section>
+  <section id="gunsmith" hidden>
+    <h2>Gunsmith</h2>
+    <p class="stat">Kills with a weapon unlock its attachments. Click an unlocked attachment to equip or remove it.</p>
+    <div id="gsList"></div>
+    <button class="btn" id="gsBack">Back</button>
+  </section>
+  <section id="settings" hidden>
+    <h2>Settings</h2>
+    <div id="setList"></div>
+    <button class="btn" id="setBack">Back</button>
+  </section>
+  <section id="account" hidden>
+    <h2 id="acctTitle">Account</h2>
+    <div id="acctBody"></div>
+  </section>
+  <section id="overPanel" hidden>
+    <h2 id="overTitle">Overrun</h2>
+    <div class="bigscore" id="finalScore">0</div>
+    <p class="stat" id="finalStat"></p>
+    <p class="stat" id="xpLine"></p>
+    <div id="ovCard"></div>
+    <div id="dropBox"></div>
+    <button class="btn" id="againBtn">Play again</button><button class="btn ghost" id="shareBtn">Share on X</button><button class="btn ghost" id="menuBtn">Menu</button>
+    <div class="best" id="bestLine2"></div>
+    <div class="lbPostRow" id="lbPostRow" hidden><input id="callsign" maxlength="16" placeholder="Your callsign" aria-label="Callsign"><button class="btn ghost" id="lbPost">Post score</button><span id="lbMsg"></span></div>
+    <div class="lb" id="lbBox2" hidden><b id="lbTitle2">Leaderboard</b><div id="lbList2"></div></div>
+  </section>
+</div>
+<div id="chatBox" hidden>
+  <div id="chatLog"></div>
+  <div id="chatEntry" hidden><input id="chatInput" maxlength="160" placeholder="Say something, Enter to send" aria-label="Chat message"><button id="chatSend" class="btn">Send</button></div>
+  <div class="chatHint" id="chatHint">Enter to chat, E or click at the trade board to trade, M for the market</div>
+</div>
+<div id="phone" hidden>
+  <div class="phFrame"><div class="phNotch"></div>
+    <div class="phStatus"><span id="phTime">9:41</span><span>X1 · 5G</span></div>
+    <div id="phBody"></div>
+    <button type="button" class="phHome" id="phClose" aria-label="Put the phone away">Put away</button>
+  </div>
+</div>
+<div id="marketPanel" hidden>
+  <h2>Degen NFT Market</h2>
+  <p class="mkWarn">Listings are posts from other players. Purchases happen on the linked marketplace, outside the game. Check links carefully, only deal with people you trust, and never share your seed phrase.</p>
+  <div id="mkTabs" class="seg"><button type="button" data-v="nftbuy" class="srvOnly">Buy NFTs</button><button type="button" data-v="nftsell" class="srvOnly">Sell NFTs</button><button type="button" data-v="browse">Board</button><button type="button" data-v="sell">Post</button></div>
+  <div id="mkNft" hidden></div>
+  <div id="mkBrowse">
+    <div class="mkBar"><div id="mkFilters" class="seg"><button type="button" data-f="all">All</button><button type="button" data-f="solana">Solana</button><button type="button" data-f="x1">X1</button></div>
+    <input id="mkSearch" placeholder="Search name or collection" aria-label="Search listings"></div>
+    <div id="mkGrid"></div><p id="mkEmpty"></p>
+  </div>
+  <div id="mkDetail" hidden>
+    <div class="mkDet"><img id="mkDImg" alt=""><div><h3 id="mkDName"></h3><p id="mkDCol"></p><p id="mkDPrice" class="mkBig"></p><p id="mkDSeller"></p><p id="mkDNote"></p>
+    <a id="mkDLink" class="btn" target="_blank" rel="noopener noreferrer"></a></div></div>
+    <button class="btn ghost" id="mkBack" type="button">Back to listings</button>
+  </div>
+  <div id="mkSell" hidden>
+    <div id="mkForm">
+      <div class="mkFields"><input id="mkItem" maxlength="40" placeholder="NFT name, for example Degen Skull #503"><input id="mkCol" maxlength="30" placeholder="Collection">
+      <select id="mkChain" aria-label="Chain"><option value="solana">Solana</option><option value="x1">X1</option><option value="other">Other</option></select><input id="mkPrice" maxlength="24" placeholder="Price, for example 25 XNT">
+      <input id="mkLink" maxlength="200" placeholder="Marketplace link (https://...)"><input id="mkNote" maxlength="80" placeholder="Note or how to reach you"></div>
+      <button class="btn" id="mkPost" type="button">Post listing</button><button class="btn ghost" id="mkRemove" type="button" hidden>Remove</button>
+    </div>
+    <p id="mkNoPost" hidden>Sign in with contributor access to post your own listing.</p>
+  </div>
+  <p id="mkMsg"></p>
+  <button class="btn ghost" id="mkClose" type="button">Close</button>
+</div>
+<div id="ageGate" hidden><div class="agBox">
+  <h2>Welcome to Dust Yard</h2>
+  <p>Please enter your date of birth.</p>
+  <div class="agRow"><input id="agMonth" inputmode="numeric" maxlength="2" placeholder="Month" aria-label="Birth month (1 to 12)"><input id="agYear" inputmode="numeric" maxlength="4" placeholder="Year" aria-label="Birth year"></div>
+  <button class="btn" id="agGo" type="button">Continue</button>
+  <p id="agMsg"></p>
+  <small>We only keep whether you are 13+ or 18+, never your birthday. By continuing you agree to the <a data-legal="terms" target="_blank" rel="noopener">Terms</a> and <a data-legal="privacy" target="_blank" rel="noopener">Privacy Policy</a>.</small>
+</div></div>
+<div id="claimPrompt" hidden><b id="cpTitle"></b><p id="cpText"></p>
+  <div class="acctRow"><button type="button" class="btn" id="cpClaim">Claim account</button><button type="button" class="btn ghost" id="cpLater">Not now</button><button type="button" class="btn ghost" id="cpNever">Don't ask again</button></div></div>
+<div id="osk" hidden><div id="oskShow"></div><div id="oskKeys"></div><div class="oskHint">Controller: X types, Circle closes</div></div>
+<button id="acctChip" type="button" hidden><span class="chipText"><b class="chipName">Guest</b><span class="chipSub">Playing as guest</span></span><em class="chipAct">Sign in</em></button>
+<div id="loginPanel" hidden><h2>Sign in</h2><div id="lgBody"></div><p id="lgMsg"></p></div>
+<div id="ggLine"></div>
+<div id="coopStatus"></div><div id="coopPrompt" hidden></div>
+<div id="scoreboard" hidden></div>
+<div id="tutBox" hidden><span id="tutStep"></span><b id="tutText"></b><em>Esc to pause or quit training</em></div>
+<div id="predHud" hidden><canvas id="predCanvas"></canvas><div class="pdFrame"></div><b>PREDATOR</b><span id="predAlt"></span><em>Steer with WASD or the mouse · click or R2 to boost</em></div>
+<div id="toast"></div>
+<button id="phoneChip" class="hubOnly" type="button"><kbd id="phoneKey">Q</kbd> Phone</button>
+<div id="fps" hidden></div>
+
+{{assets}}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/SMAAShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/SMAAPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script>{{vendor:tweetnacl}}</script>
+<script>{{vendor:qrcode}}</script>
+<script>{{game}}</script>
+</body>
+</html>

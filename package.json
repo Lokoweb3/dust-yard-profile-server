@@ -14,7 +14,8 @@
     "test:e2e": "node tests/e2e.mjs",
     "test": "npm run check && npm run lint && npm run test:matches && npm run test:db && npm run test:smoke && npm run test:e2e",
     "lint": "eslint --no-eslintrc --env node,es2022 --parser-options=ecmaVersion:2022 --rule 'no-undef:error' profile-server.js lib/",
-    "build": "node scripts/build-game.mjs"
+    "build": "node scripts/build-game.mjs",
+    "build:watch": "node scripts/build-game.mjs --watch"
   },
   "engines": {
     "node": ">=20"

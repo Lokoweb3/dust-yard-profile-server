@@ -1,61 +1,102 @@
-// Builds public/index.html (what Railway serves) from game/dust-yard.html (the single-file source,
-// which also runs on its own as the claude.ai artifact).
+// Builds the game from its sources in game/:
 //
-//  - big models and textures move out of the page into public/assets/, named by content hash so
-//    browsers can cache them forever and only re-download when they change
-//  - three.js comes from node_modules (pinned r128) instead of a CDN
-//  - all inline code is minified
+//   game/index.html     the page: markup, with {{placeholders}} for everything below
+//   game/styles.css     all the CSS
+//   game/src/*.js       the game code, in numbered files that are joined in order into one script
+//                       (they share one scope, so order matters: a file can use what earlier files define)
+//   game/vendor/*.js    small third-party libraries (tweetnacl, qrcode-generator)
+//   game/assets/        models and textures as real files; assets.json lists them in page order
 //
-// Run: npm run build      (CI fails if public/ is not up to date with the source)
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+// and writes two versions:
+//
+//   public/index.html + public/assets/   what Railway serves: big models and textures as separate files
+//                                        named by content hash (cached forever), three.js inlined from
+//                                        node_modules (pinned r128), code and CSS minified
+//   dist/dust-yard.html                  one self-contained file (models embedded, three.js from a CDN)
+//                                        for the claude.ai version; not committed
+//
+// Run:  npm run build           build once (CI fails if public/ is not up to date with the source)
+//       npm run build:watch     rebuild whenever a file in game/ changes
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, watch } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { transformSync } from 'esbuild';
 
-const SRC = 'game/dust-yard.html', OUT = 'public/index.html', ASSET_DIR = 'public/assets';
-const EXTERNAL = ['soldierGlb', 'soldierDiff', 'soldierNorm', 'hdWolf', 'hdApe', 'hdWolfToon', 'hdFox', 'hdBear', 'hdTiger', 'hdPanda', 'hdLion', 'hdHumanLight', 'hdHumanTan', 'hdHumanBrown', 'hdHumanDark'];   // large embedded files served separately
-let html = readFileSync(SRC, 'utf8');
-const before = html.length;
+const G = 'game', OUT = 'public/index.html', ASSET_DIR = 'public/assets', STANDALONE = 'dist/dust-yard.html';
+const read = f => readFileSync(f, 'utf8');
+const kb = n => (n/1024).toFixed(0) + ' KB';
 
-// 1. move large embedded assets to hashed files
-mkdirSync(ASSET_DIR, { recursive:true });
-for (const f of readdirSync(ASSET_DIR)) rmSync(`${ASSET_DIR}/${f}`);
-const manifest = {};
-for (const id of EXTERNAL){
-  const re = new RegExp(`<script type="text/plain" id="${id}">([\\s\\S]*?)</script>\\n?`);
-  const m = html.match(re); if (!m) throw new Error(`asset ${id} not found in ${SRC}`);
-  const buf = Buffer.from(m[1].trim(), 'base64');
-  const ext = buf.subarray(0, 4).toString() === 'glTF' ? 'glb' : buf[0] === 0xff && buf[1] === 0xd8 ? 'jpg' : buf[0] === 0x89 ? 'png' : 'bin';
-  const name = `${id}.${createHash('sha256').update(buf).digest('hex').slice(0, 10)}.${ext}`;
-  writeFileSync(`${ASSET_DIR}/${name}`, buf);
-  manifest[id] = `assets/${name}`;
-  html = html.replace(m[0], '');
+/** The whole game as one self-contained page, exactly as the single-file version used to be. */
+function assemble(){
+  const assets = JSON.parse(read(`${G}/assets/assets.json`));
+  const src = readdirSync(`${G}/src`).filter(f => f.endsWith('.js')).sort();
+  const parts = {
+    styles:read(`${G}/styles.css`),
+    assets:assets.map(a => `<script type="text/plain" id="${a.id}">${readFileSync(`${G}/assets/${a.file}`).toString('base64')}</script>`).join('\n'),
+    game:src.map(f => read(`${G}/src/${f}`)).join('')
+  };
+  const html = read(`${G}/index.html`).replace(/\{\{(styles|assets|game|vendor:([a-z0-9-]+))\}\}/g, (m, key, vendor) => {
+    const v = vendor ? read(`${G}/vendor/${vendor}.js`) : parts[key];
+    if (v === undefined) throw new Error('unknown placeholder ' + m);
+    return v;
+  });
+  if (/\{\{[a-z:0-9-]+\}\}/.test(html)) throw new Error('a placeholder was left in the page');
+  return { html, assets, files:src.length };
 }
 
-// 2. three.js r128 from node_modules, minified
-const threeFile = url => {
-  const m = url.match(/three(?:\.js)?\/r128\/(three\.min\.js)$/) || url.match(/three@0\.128\.0\/(examples\/js\/.+\.js)$/);
-  if (!m) throw new Error('unexpected script source ' + url);
-  return m[1] === 'three.min.js' ? 'node_modules/three/build/three.min.js' : `node_modules/three/${m[1]}`;
-};
-html = html.replace(/<script src="([^"]+)"><\/script>/g, (_, url) => {
-  const file = threeFile(url), code = readFileSync(file, 'utf8');
-  const min = file.endsWith('.min.js') ? code : transformSync(code, { minify:true, loader:'js' }).code;
-  return `<script>/* ${file.split('/').pop()} (three.js r128, MIT) */\n${min.trim()}\n</script>`;
-});
+/** The Railway version: assets out of the page, three.js inlined, everything minified. */
+function forRailway(html, assets){
+  mkdirSync(ASSET_DIR, { recursive:true });
+  for (const f of readdirSync(ASSET_DIR)) rmSync(`${ASSET_DIR}/${f}`);
+  const manifest = {};
+  // 1. large models and textures become hashed files; small ones stay in the page
+  for (const a of assets.filter(a => a.external)){
+    const buf = readFileSync(`${G}/assets/${a.file}`), ext = a.file.split('.').pop();
+    const name = `${a.id}.${createHash('sha256').update(buf).digest('hex').slice(0, 10)}.${ext}`;
+    writeFileSync(`${ASSET_DIR}/${name}`, buf);
+    manifest[a.id] = `assets/${name}`;
+    const tag = `<script type="text/plain" id="${a.id}">${buf.toString('base64')}</script>\n`;
+    if (!html.includes(tag)) throw new Error(`asset ${a.id} not found in the page`);
+    html = html.replace(tag, '');
+  }
+  // 2. three.js r128 from node_modules, minified
+  const threeFile = url => {
+    const m = url.match(/three(?:\.js)?\/r128\/(three\.min\.js)$/) || url.match(/three@0\.128\.0\/(examples\/js\/.+\.js)$/);
+    if (!m) throw new Error('unexpected script source ' + url);
+    return m[1] === 'three.min.js' ? 'node_modules/three/build/three.min.js' : `node_modules/three/${m[1]}`;
+  };
+  html = html.replace(/<script src="([^"]+)"><\/script>/g, (_, url) => {
+    const file = threeFile(url), code = read(file);
+    const min = file.endsWith('.min.js') ? code : transformSync(code, { minify:true, loader:'js' }).code;
+    return `<script>/* ${file.split('/').pop()} (three.js r128, MIT) */\n${min.trim()}\n</script>`;
+  });
+  // 3. minify the game's own scripts (not data blocks or the three.js ones done above) and the CSS
+  let scripts = 0;
+  html = html.replace(/<script>(?!\/\* [^ ]+ \(three\.js)([\s\S]*?)<\/script>/g, (_, code) => {
+    scripts++;
+    const out = transformSync(code, { minify:true, loader:'js', target:'es2020' }).code;
+    if (out.includes('</script')) throw new Error('minified code contains a closing script tag');
+    return `<script>${out.trim()}</script>`;
+  });
+  html = html.replace(/<style>([\s\S]*?)<\/style>/, (_, css) => `<style>${transformSync(css, { minify:true, loader:'css' }).code.trim()}</style>`);
+  // 4. tell the game where its assets are, before any game code runs
+  html = html.replace('<title>', `<!-- Dust Yard, Railway build: generated by scripts/build-game.mjs from game/. Edit the sources there, not this file. -->\n<script>window.DY_ASSETS=${JSON.stringify(manifest)}</script>\n<title>`);
+  writeFileSync(OUT, html);
+  return { html, manifest, scripts };
+}
 
-// 3. minify the game's own inline scripts (skip data blocks and the three.js ones done above)
-let scripts = 0;
-html = html.replace(/<script>(?!\/\* [^ ]+ \(three\.js)([\s\S]*?)<\/script>/g, (_, code) => {
-  scripts++;
-  const out = transformSync(code, { minify:true, loader:'js', target:'es2020' }).code;
-  if (out.includes('</script')) throw new Error('minified code contains a closing script tag');
-  return `<script>${out.trim()}</script>`;
-});
+function build(){
+  const t0 = Date.now();
+  const { html, assets, files } = assemble();
+  mkdirSync('dist', { recursive:true });
+  writeFileSync(STANDALONE, html);
+  const r = forRailway(html, assets);
+  console.log(`${files} source files -> ${STANDALONE} (${kb(html.length)}, self-contained) and ${OUT} (${kb(r.html.length)}, ${r.scripts} scripts minified) in ${Date.now() - t0} ms`);
+  for (const p of Object.values(r.manifest)) console.log(`  ${p}  ${kb(readFileSync('public/' + p).length)}`);
+}
 
-// 4. tell the game where its assets are, before any game code runs
-html = html.replace('<title>', `<!-- Dust Yard, Railway build: generated by scripts/build-game.mjs from ${SRC}. Edit the source, not this file. -->\n<script>window.DY_ASSETS=${JSON.stringify(manifest)}</script>\n<title>`);
-
-writeFileSync(OUT, html);
-const kb = n => (n/1024).toFixed(0) + ' KB';
-console.log(`${OUT}: ${kb(before)} source -> ${kb(html.length)} page (${scripts} scripts minified)`);
-for (const [id, p] of Object.entries(manifest)) console.log(`  ${p}  ${kb(readFileSync('public/' + p).length)}`);
+build();
+if (process.argv.includes('--watch')){
+  let timer = null;
+  watch(G, { recursive:true }, () => { clearTimeout(timer); timer = setTimeout(() => { try { build(); } catch(e){ console.error('build failed:', e.message); } }, 150); });
+  console.log('watching game/ for changes...');
+}

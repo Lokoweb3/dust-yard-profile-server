@@ -4,3 +4,4 @@ data
 test-results
 .env
 *keypair*.json
+dist
