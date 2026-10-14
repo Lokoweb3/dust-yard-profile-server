@@ -4806,71 +4806,127 @@ function shockwave(at, R, dmg, stun){
 /* Stampede (5 kills): mark a line like an airstrike; a herd of glowing spirit beasts charges along it,
    through walls, trampling every raider in the way. */
 const stampJobs = [];
-// elephants: a cartoon herd built from simple shapes, with stomping legs, a swinging trunk and flapping ears
-const eleSkin = new THREE.MeshStandardMaterial({ color:0x8d8781, roughness:.95 }), eleDark = new THREE.MeshStandardMaterial({ color:0x6f6a65, roughness:.95 });
+// elephants: realistic shapes and wrinkled skin, wearing the game's war gear
+const eleSkinTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#7a756f'; g.fillRect(0, 0, 256, 256);
+  for (let i=0;i<5000;i++){ const v = 95 + Math.random()*40 | 0; g.fillStyle = `rgba(${v},${v - 4},${v - 8},.25)`; g.fillRect(Math.random()*256, Math.random()*256, 2, 2); }
+  // elephant skin: a network of fine cracks (a jittered grid of cells), plus a few soft folds
+  const N = 22, pts = [];
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++) pts.push([(i + .2 + Math.random()*.6)*256/N, (j + .2 + Math.random()*.6)*256/N]);
+  const P = (i, j) => pts[((i + N) % N)*N + ((j + N) % N)], wrapPt = (i, j) => { const q = P(i, j); return [q[0] + (i < 0 ? -256 : i >= N ? 256 : 0), q[1] + (j < 0 ? -256 : j >= N ? 256 : 0)]; };
+  g.lineCap = 'round';
+  for (let i=-1;i<=N;i++) for (let j=-1;j<=N;j++){
+    const a = wrapPt(i, j);
+    for (const [di, dj] of [[1, 0], [0, 1]]){ const b = wrapPt(i + di, j + dj);
+      g.strokeStyle = `rgba(38,34,31,${.28 + Math.random()*.25})`; g.lineWidth = .7 + Math.random()*.9; g.beginPath(); g.moveTo(a[0], a[1]);
+      g.quadraticCurveTo((a[0] + b[0])/2 + (Math.random() - .5)*5, (a[1] + b[1])/2 + (Math.random() - .5)*5, b[0], b[1]); g.stroke(); }
+  }
+  for (let i=0;i<14;i++){ const y = Math.random()*256, ph = Math.random()*6;
+    g.strokeStyle = 'rgba(40,36,33,.22)'; g.lineWidth = 2.2; g.beginPath(); for (let x = -4; x <= 260; x += 6){ const yy = y + Math.sin(x*.04 + ph)*3; x < 0 ? g.moveTo(x, yy) : g.lineTo(x, yy); } g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3); return t; })();
+const eleSkin = new THREE.MeshStandardMaterial({ color:0xb0aaa3, map:eleSkinTex, bumpMap:eleSkinTex, bumpScale:.025, roughness:1 });
+const eleDark = new THREE.MeshStandardMaterial({ color:0x8a847d, map:eleSkinTex, bumpMap:eleSkinTex, bumpScale:.03, roughness:1 });
+const eleEar = new THREE.MeshStandardMaterial({ color:0xa59c96, map:eleSkinTex, bumpMap:eleSkinTex, bumpScale:.02, roughness:1, side:THREE.DoubleSide });
+const eleNail = new THREE.MeshStandardMaterial({ color:0xd9d0bd, roughness:.6 }), eleTuft = new THREE.MeshStandardMaterial({ color:0x2a2622, roughness:1 });
 // war gear in the game's colours: desert armour, olive cloth, red stripes, dark metal
 const eleArmor = new THREE.MeshStandardMaterial({ color:0xc9b48a, roughness:.55, metalness:.25 }), eleCloth = new THREE.MeshStandardMaterial({ color:0x58663a, roughness:.9 });
 const eleRed = new THREE.MeshStandardMaterial({ color:0xb8322a, roughness:.7 }), eleMetal = new THREE.MeshStandardMaterial({ color:0x2b2e31, roughness:.4, metalness:.7 });
-const eleCrate = new THREE.MeshStandardMaterial({ color:0x4d5733, roughness:.8 }), eleGlass = new THREE.MeshStandardMaterial({ color:0x5fb7e8, roughness:.1, metalness:.3, emissive:0x113344 });
-const eleTusk = new THREE.MeshStandardMaterial({ color:0xf3ecdc, roughness:.4 }), eleEye = new THREE.MeshStandardMaterial({ color:0x111111, roughness:.3 }), eleEar = new THREE.MeshStandardMaterial({ color:0x9a8f8a, roughness:.95, side:THREE.DoubleSide });
+const eleCrate = new THREE.MeshStandardMaterial({ color:0x4d5733, roughness:.8 }), eleRope = new THREE.MeshStandardMaterial({ color:0x6b5a3e, roughness:1 });
+const eleTusk = new THREE.MeshStandardMaterial({ color:0xeee5d0, roughness:.35 }), eleEye = new THREE.MeshStandardMaterial({ color:0x1a120c, roughness:.15 });
+// a sphere reshaped by a function, for smooth organic forms
+function shapedSphere(wSeg, hSeg, fn){
+  const geo = new THREE.SphereGeometry(1, wSeg, hSeg), p = geo.attributes.position, v = new V3();
+  for (let i=0;i<p.count;i++){ v.fromBufferAttribute(p, i); fn(v); p.setXYZ(i, v.x, v.y, v.z); }
+  geo.computeVertexNormals(); return geo;
+}
+// shared shapes (z is forward)
+const eleBodyGeo = shapedSphere(40, 28, v => {
+  const z = v.z, up = Math.max(0, v.y);
+  v.y += .2*Math.exp(-((z - .35)**2)/.12)*up;                 // high shoulders
+  v.y -= .14*Math.max(0, -z)*up;                              // back slopes down to the rump
+  if (v.y < 0) v.y -= .12*(1 - z*z);                          // belly hangs low
+  v.x *= 1 - .12*Math.max(0, z - .55) - .08*Math.max(0, -z - .6);
+  v.set(v.x*1.12, v.y*1.12, v.z*1.85);
+});
+const eleHeadGeo = shapedSphere(32, 24, v => {
+  if (v.y > .3) v.y += .1*Math.exp(-(v.x*v.x)/.15);           // domed forehead
+  if (v.z > .2 && v.y < .2) v.z += .25*(v.z - .2);            // muzzle pushes forward into the trunk
+  if (v.y < -.4) v.z *= .85;                                   // narrow chin
+  v.set(v.x*.78, v.y*.86, v.z*.8);
+});
+// a fan-shaped ear, cupped slightly, hanging from its top front edge
+const eleEarGeo = (() => {
+  const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(-.25, .35, -1.0, .45, -1.25, .05); sh.bezierCurveTo(-1.45, -.45, -1.15, -1.25, -.75, -1.45);
+  sh.bezierCurveTo(-.45, -1.6, -.15, -1.2, -.12, -.85); sh.bezierCurveTo(-.1, -.5, .05, -.3, 0, 0);
+  const geo = new THREE.ExtrudeGeometry(sh, { depth:.05, bevelEnabled:true, bevelThickness:.02, bevelSize:.025, bevelSegments:2, curveSegments:16 });
+  const p = geo.attributes.position, v = new V3();
+  for (let i=0;i<p.count;i++){ v.fromBufferAttribute(p, i); v.z += .12*Math.sin(Math.min(1, -v.x/1.3)*Math.PI); p.setXYZ(i, v.x, v.y, v.z); }
+  geo.computeVertexNormals(); return geo;
+})();
+// a curved, tapering tusk
+const eleTuskGeo = (() => {
+  const curve = new THREE.QuadraticBezierCurve3(new V3(0, 0, 0), new V3(0, -.55, .35), new V3(.05, -.35, .95));
+  const geo = new THREE.TubeGeometry(curve, 16, .09, 10, false), p = geo.attributes.position, v = new V3();
+  for (let i=0;i<p.count;i++){ const t = Math.floor(i/11)/16, c = curve.getPoint(t); v.fromBufferAttribute(p, i).sub(c).multiplyScalar(1 - t*.8).add(c); p.setXYZ(i, v.x, v.y, v.z); }
+  geo.computeVertexNormals(); return geo;
+})();
 function makeBeast(){
   // the armour wears the game's desert camo and the blanket its woodland camo (made later in the script, so set on first use)
   if (!eleArmor.map && typeof OP_PATTERNS !== 'undefined'){
     if (OP_PATTERNS.desertc){ eleArmor.map = OP_PATTERNS.desertc.map; eleArmor.color.set(0xffffff); eleArmor.needsUpdate = true; }
     if (OP_PATTERNS.woodland){ eleCloth.map = OP_PATTERNS.woodland.map; eleCloth.color.set(0xd8dccc); eleCloth.needsUpdate = true; }
   }
-  const g = new THREE.Group(), sph = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = g) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); return m; };
-  sph(1, eleSkin, 0, 2.05, 0, 1.15, 1.05, 1.55);                       // body
-  sph(.8, eleSkin, 0, 2.15, -.75, 1.05, 1, 1);                         // rump
-  const head = new THREE.Group(); head.position.set(0, 2.45, 1.45); g.add(head);
-  sph(.78, eleSkin, 0, 0, 0, 1, 1.05, 1, head);
-  for (const sx of [-1, 1]) sph(.09, eleEye, sx*.42, .18, .58, 1, 1, 1, head);
-  // big ears, pivoting at the side of the head
+  const g = new THREE.Group(), mesh = (geo, mat, parent, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+  mesh(eleBodyGeo, eleSkin, g, 0, 2.15, -.1);
+  // head hangs low and forward from the shoulders
+  const head = new THREE.Group(); head.position.set(0, 2.45, 1.75); g.add(head);
+  mesh(eleHeadGeo, eleSkin, head);
+  for (const sx of [-1, 1]){ const e = mesh(new THREE.SphereGeometry(.055, 10, 8), eleEye, head, sx*.5, .02, .45); e.scale.set(1, .7, 1); }
+  // ears: big fans that flare out when charging
   const ears = [];
-  for (const sx of [-1, 1]){ const e = new THREE.Group(); e.position.set(sx*.62, -.05, -.15); head.add(e); sph(.72, eleEar, sx*.06, -.12, -.38, .1, 1.05, .85, e); ears.push(e); }
+  for (const sx of [-1, 1]){ const e = new THREE.Group(); e.position.set(sx*.55, .35, -.25); head.add(e); const m = mesh(eleEarGeo, eleEar, e); m.rotation.y = sx > 0 ? Math.PI : 0; m.scale.set(1, 1, sx); ears.push(e); }
   // tusks
-  for (const sx of [-1, 1]){ const t = new THREE.Mesh(new THREE.ConeGeometry(.11, 1, 8), eleTusk); t.position.set(sx*.32, -.5, .72); t.rotation.x = 2.1; t.castShadow = true; head.add(t); }
-  // trunk: a chain of segments that curls and swings
-  const trunk = []; let parent = head, y = -.15, r = .2;
-  for (let i=0;i<5;i++){
-    const seg = new THREE.Group(); seg.position.set(0, i ? -.25 : y, i ? 0 : .7); parent.add(seg);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r*.9, r, .28, 10), eleSkin); m.position.y = -.12; m.castShadow = true; seg.add(m);
-    trunk.push(seg); parent = seg; r *= .86;
+  for (const sx of [-1, 1]){ const t = mesh(eleTuskGeo, eleTusk, head, sx*.3, -.38, .45); t.rotation.y = -sx*.15;
+    const cap = mesh(new THREE.ConeGeometry(.035, .16, 8), eleMetal, t, .05, -.33, .98); cap.rotation.x = 1.25; }   // metal tip caps
+  // trunk: tapering segments with rounded joints, long enough to reach near the ground
+  const trunk = []; let parent = head, r = .26;
+  for (let i=0;i<9;i++){
+    const seg = new THREE.Group(); seg.position.set(0, i ? -.24 : -.25, i ? 0 : .62); parent.add(seg);
+    mesh(new THREE.CylinderGeometry(r*.9, r, .26, 14), eleSkin, seg, 0, -.12, 0);
+    mesh(new THREE.SphereGeometry(r*.92, 14, 10), eleSkin, seg, 0, -.24, 0);
+    trunk.push(seg); parent = seg; r *= .88;
   }
+  // legs: thick columns with a knee, wide round feet and toenails
   const legs = [];
-  for (const [x, z] of [[-.55, .85], [.55, .85], [-.55, -.8], [.55, -.8]]){
-    const l = new THREE.Group(); l.position.set(x, 1.55, z); g.add(l);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(.34, .3, 1.55, 12), eleSkin); m.position.y = -.78; m.castShadow = true; l.add(m);
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(.36, .38, .12, 12), eleDark); foot.position.y = -1.52; l.add(foot);
-    legs.push(l);
+  for (const [x, z] of [[-.62, .75], [.62, .75], [-.6, -1.05], [.6, -1.05]]){
+    const l = new THREE.Group(); l.position.set(x, 1.75, z); g.add(l);
+    mesh(new THREE.SphereGeometry(.46, 16, 12), eleSkin, l, 0, 0, 0).scale.set(1, 1.2, 1.1);
+    mesh(new THREE.CylinderGeometry(.4, .36, .9, 16), eleSkin, l, 0, -.5, 0);
+    const knee = new THREE.Group(); knee.position.y = -.95; l.add(knee);
+    mesh(new THREE.SphereGeometry(.37, 14, 10), eleSkin, knee);
+    mesh(new THREE.CylinderGeometry(.36, .4, .75, 16), eleSkin, knee, 0, -.4, 0);
+    mesh(new THREE.CylinderGeometry(.43, .45, .1, 16), eleDark, knee, 0, -.77, 0);
+    for (const a of [-.5, 0, .5]){ const n = mesh(new THREE.SphereGeometry(.09, 8, 6), eleNail, knee, Math.sin(a)*.4, -.75, Math.cos(a)*.4); n.scale.set(1, .6, .6); }
+    legs.push({ l, knee });
   }
   // ---- war gear ----
   const bx = (w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0, parent = g) => { const m = new THREE.Mesh(Bx(w, h, d), mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; parent.add(m); return m; };
-  // saddle blanket over the back, hanging down both sides, with a red stripe along the edge
-  bx(1.9, .1, 2.3, eleCloth, 0, 3.06, -.1);
-  for (const sx of [-1, 1]){ bx(.08, 1.0, 2.2, eleCloth, sx*1.12, 2.58, -.1, 0, 0, sx*.12); bx(.09, .12, 2.24, eleRed, sx*1.18, 2.06, -.1, 0, 0, sx*.12); }
-  // armour: a chest plate and shoulder plates
-  bx(1.5, .9, .16, eleArmor, 0, 2.0, 1.32, -.25);
-  for (const sx of [-1, 1]) sph(.5, eleArmor, sx*.98, 2.45, .75, .35, .8, .9);
-  // cargo on the back: ammo crates, a sandbag and a red flag on a pole
-  bx(.7, .45, .55, eleCrate, -.38, 3.35, -.35); bx(.7, .45, .55, eleCrate, .38, 3.35, -.35); bx(.72, .06, .57, eleMetal, -.38, 3.58, -.35); bx(.72, .06, .57, eleMetal, .38, 3.58, -.35);
-  sph(.32, eleArmor, 0, 3.25, .45, 1.6, .55, 1);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 1.6, 6), eleMetal); pole.position.set(.55, 4.1, -.85); g.add(pole);
-  bx(.04, .38, .6, eleRed, .55, 4.7, -1.15);
-  // leg guards on the front legs
-  for (const l of legs.slice(0, 2)){ const m = new THREE.Mesh(new THREE.CylinderGeometry(.38, .36, .55, 12, 1, true), eleArmor); m.position.y = -.35; m.castShadow = true; l.add(m); }
-  // head: an armoured brow plate with rivets, a helmet with goggles, metal tusk caps
-  sph(.6, eleArmor, 0, .32, .42, 1.15, .55, .6, head);
-  for (const sx of [-1, 0, 1]) sph(.05, eleMetal, sx*.28, .36, .78, 1, 1, 1, head);
-  sph(.5, eleArmor, 0, .58, -.05, 1.05, .55, 1, head);
-  bx(1.05, .08, .1, eleRed, 0, .55, .38, 0, 0, 0, head);
-  for (const sx of [-1, 1]){ const gg = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .1, 14), eleMetal); gg.rotation.x = HP; gg.position.set(sx*.33, .3, .68); head.add(gg);
-    const gl = new THREE.Mesh(new THREE.CircleGeometry(.1, 14), eleGlass); gl.position.set(sx*.33, .3, .735); head.add(gl); }
-  for (const t of head.children.filter(c => c.material === eleTusk)){ const cap = new THREE.Mesh(new THREE.ConeGeometry(.115, .3, 8), eleMetal); cap.position.copy(t.position); cap.rotation.copy(t.rotation); cap.translateY(.42); head.add(cap); }
+  // saddle blanket over the back, draped down both sides, red stripe along the edge, held on by a girth rope
+  bx(1.6, .08, 2.0, eleCloth, 0, 3.42, .05);
+  for (const sx of [-1, 1]){ bx(.07, 1.05, 2.0, eleCloth, sx*.98, 2.95, .05, 0, 0, sx*.42); bx(.08, .12, 2.02, eleRed, sx*1.2, 2.47, .05, 0, 0, sx*.42); }
+  const girth = new THREE.Mesh(new THREE.TorusGeometry(1.18, .045, 6, 32), eleRope); girth.position.set(0, 2.25, .35); girth.scale.set(1.02, 1.12, 1); g.add(girth);
+  // cargo: ammo crates and a red flag on a pole
+  bx(.62, .42, .5, eleCrate, -.36, 3.67, -.25); bx(.62, .42, .5, eleCrate, .36, 3.67, -.25); bx(.64, .05, .52, eleMetal, -.36, 3.89, -.25); bx(.64, .05, .52, eleMetal, .36, 3.89, -.25);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 1.5, 6), eleMetal); pole.position.set(.5, 4.35, -.7); g.add(pole);
+  bx(.04, .36, .58, eleRed, .5, 4.9, -1.0);
+  // an armoured plate on the forehead, metal caps on the tusk tips
+  const plate = mesh(new THREE.SphereGeometry(.66, 24, 14, 0, Math.PI*2, 0, Math.PI*.42), eleArmor, head, 0, .2, .2); plate.rotation.x = 1.05; plate.scale.set(1, 1, .55);
+  bx(.95, .07, .08, eleRed, 0, .62, .32, -.3, 0, 0, head);
   mergeParts(g); mergeParts(head);
-  const tail = new THREE.Group(); tail.position.set(0, 2.4, -1.5); g.add(tail);
-  const tm = new THREE.Mesh(new THREE.CylinderGeometry(.04, .03, .8, 6), eleDark); tm.position.y = -.4; tail.add(tm); tail.rotation.x = -.3;
-  g.scale.setScalar(.9 + Math.random()*.25);
+  // tail with a dark tuft
+  const tail = new THREE.Group(); tail.position.set(0, 2.55, -2.05); g.add(tail);
+  mesh(new THREE.CylinderGeometry(.04, .06, .9, 8), eleDark, tail, 0, -.45, 0); mesh(new THREE.SphereGeometry(.08, 8, 6), eleTuft, tail, 0, -.95, 0).scale.set(1, 1.6, 1); tail.rotation.x = -.25;
+  g.scale.setScalar(.92 + Math.random()*.2);
   g.userData = { legs, head, ears, trunk, tail };
   return g;
 }
@@ -4892,11 +4948,14 @@ function updateStampedes(dt){
     for (const b of S.beasts){
       b.g.position.addScaledVector(S.dir, 22*dt); b.ph += dt*14;
       const U = b.g.userData;
-      U.legs.forEach((l, j) => { l.rotation.x = Math.sin(b.ph*.75 + (j % 2 ? Math.PI : 0) + (j > 1 ? Math.PI/2 : 0))*.55; });
-      U.trunk.forEach((t, j) => { t.rotation.x = -(j ? .22 : .35) - Math.sin(b.ph*.5 - j*.6)*.2; t.rotation.z = Math.sin(b.ph*.35 - j*.5)*.12; });
-      U.ears.forEach((e, j) => { e.rotation.y = (j ? 1 : -1)*(.2 + Math.sin(b.ph*.6)*.35); });
-      U.head.rotation.x = Math.sin(b.ph*.75)*.06; U.tail.rotation.z = Math.sin(b.ph)*.4;
-      b.g.position.y = Math.abs(Math.sin(b.ph*.75))*.15;
+      // a lumbering gait: each leg swings from the hip and bends at the knee as it lifts
+      U.legs.forEach((L, j) => { const a = b.ph*.7 + [0, Math.PI, Math.PI*.5, Math.PI*1.5][j], sw = Math.sin(a);
+        L.l.rotation.x = sw*.38; L.knee.rotation.x = Math.max(0, Math.cos(a))*-.55; });
+      // trunk swings and curls up a little at the tip; ears flared out as they charge
+      U.trunk.forEach((t, j) => { t.rotation.x = (j > 5 ? -.22 : -.04) + Math.sin(b.ph*.35 - j*.45)*.09; t.rotation.z = Math.sin(b.ph*.25 - j*.4)*.07; });
+      U.ears.forEach((e, j) => { e.rotation.y = (j ? -1 : 1)*(.75 + Math.sin(b.ph*.5)*.18); });
+      U.head.rotation.x = Math.sin(b.ph*.7*2)*.04; U.tail.rotation.z = Math.sin(b.ph*.8)*.35;
+      b.g.position.y = Math.abs(Math.sin(b.ph*.7))*.12;
       for (const e of enemies){
         if (!e.alive || b.hit.has(e)) continue;
         if (Math.hypot(e.pos.x - b.g.position.x, e.pos.z - b.g.position.z) < 2.4){ b.hit.add(e); if (!e.remote) e.flinch = .4; damageEnemy(e, 400, false, S.dir, 'stampede'); }
