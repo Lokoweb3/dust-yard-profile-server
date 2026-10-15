@@ -24,7 +24,7 @@ namespace DustYard
             weapon.Hit += (killed, head) => { hitT = 0.18f; hitMarker.color = killed ? new Color(1f, 0.3f, 0.25f) : head ? new Color(1f, 0.85f, 0.3f) : Color.white; audioSrc.PlayOneShot(SynthAudio.Tick, 0.6f); };
             playerHealth.Damaged += (a, from) => { dmgT = 0.35f; };
             playerHealth.Died += () => { PlayerController.LockCursor(false); weapon.enabled = false; playerHealth.GetComponent<PlayerController>().enabled = false; };
-            spawner.WaveStarted += w => { bannerT = 2.5f; };
+            spawner.WaveStarted += w => { bannerT = 2.5f; if (w > 1) weapon.Resupply(90); };   // ammo drop between waves
         }
 
         void Update()

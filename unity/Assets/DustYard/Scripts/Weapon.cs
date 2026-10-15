@@ -36,6 +36,7 @@ namespace DustYard
 
         public int Ammo { get; private set; }
         public int Reserve => reserve;
+        public void Resupply(int rounds) { reserve = Mathf.Min(reserve + rounds, 270); }
         public bool Reloading => reloadT > 0f;
         public float SpreadNow => spread;
         public float AdsAmount => ads;
