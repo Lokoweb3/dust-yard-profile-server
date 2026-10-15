@@ -45,6 +45,8 @@ namespace DustYard
                 var sp = spawnPoints[Random.Range(0, spawnPoints.Length)];
                 if (player && Vector3.Distance(sp.position, player.position) < minSpawnDistance) continue;
                 if (!NavMesh.SamplePosition(sp.position, out NavMeshHit hit, 2f, NavMesh.AllAreas)) continue;
+                if (Mathf.Abs(hit.position.y - sp.position.y) > 0.5f) continue;   // snapped onto a roof
+                if (Physics.CheckCapsule(hit.position + Vector3.up * 0.5f, hit.position + Vector3.up * 1.4f, 0.4f, ~0, QueryTriggerInteraction.Ignore)) continue;   // would materialize inside something
                 var go = Instantiate(raiderPrefab, hit.position, sp.rotation);
                 var ai = go.GetComponent<RaiderAI>();
                 // a little tougher each wave
