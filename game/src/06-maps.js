@@ -291,7 +291,7 @@ function buildJungle(){
   addCollider(0, (-31 + TZ0)/2, 13, TZ0 + 31, T2); addCollider(0, (TZ1 - 20)/2, 13, -20 - TZ1, T2);
   block(0, (TZ1 - 23)/2, 8, -23 - TZ1, T3 - T2, stoneM, T2, false); addCollider(0, (TZ1 - 23)/2, 8, -23 - TZ1, T3);
   block(0, (TZ0 + TZ1)/2, 13, TZ1 - TZ0, T2 - 2.6, stoneDark, 2.6, false);                 // the tunnel roof
-  JUNGLE_PLATFORMS.push({ minX:-6.5, maxX:6.5, minZ:TZ0, maxZ:TZ1, top:T2 });
+  JUNGLE_PLATFORMS.push({ minX:-6.5, maxX:6.5, minZ:TZ0, maxZ:TZ1, top:T2, under:2.6 });
   for (const sx of [-1, 1]){ block(sx*6.6, TZ0 - .2, .5, .4, 2.6, stoneDark, 0, false); block(sx*6.6, TZ1 + .2, .5, .4, 2.6, stoneDark, 0, false); }   // carved door posts
   for (let i=0;i<13;i++) block(0, -23.04 + (12 - i)*.92, 3.6, .92, .34*(i + 1), stoneDark);
   block(-1.5, PZ - 1.5, .5, .5, 2.2, stoneDark, T3); block(1.5, PZ - 1.5, .5, .5, 2.2, stoneDark, T3); block(0, PZ - 1.5, 3.6, .7, .45, stoneM, T3 + 2.2, false);

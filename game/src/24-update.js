@@ -83,7 +83,13 @@ function updatePlayer(dt){
   P.vel.y -= 22*dt;
   const vyBefore = P.vel.y, wasGround = P.onGround;
   if (pounce){ updatePounce(dt); return; }
-  P.pos.addScaledVector(P.vel, dt);
+  // move in short steps when fast (slides, dashes, jetpack boosts), so thin walls can't be skipped over in one frame
+  const yBefore = P.pos.y, steps = Math.min(12, Math.max(1, Math.ceil(Math.hypot(P.vel.x, P.vel.z)*dt/.18)));
+  for (let i=0;i<steps;i++){ P.pos.x += P.vel.x*dt/steps; P.pos.z += P.vel.z*dt/steps; if (steps > 1) collide(P.pos, P.r, P.pos.y); }
+  P.pos.y += P.vel.y*dt;
+  // ceilings: floors above you (mezzanine, roofs, the jungle tunnel) stop your head
+  if (P.vel.y > 0) for (const pl of platforms){ if (pl.under === undefined || P.pos.x < pl.minX || P.pos.x > pl.maxX || P.pos.z < pl.minZ || P.pos.z > pl.maxZ) continue;
+    if (P.pos.y + 1.8 > pl.under && yBefore + 1.8 <= pl.under + .05){ P.pos.y = pl.under - 1.8; P.vel.y = 0; } }
   const gy = groundAt(P.pos.x, P.pos.z, P.pos.y);
   if (P.pos.y <= gy){
     P.pos.y = gy; P.vel.y = 0;
