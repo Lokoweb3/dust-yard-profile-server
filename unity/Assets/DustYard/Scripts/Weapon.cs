@@ -24,6 +24,7 @@ namespace DustYard
         public float range = 200f;
         public float baseSpread = 0.4f, moveSpread = 1.6f, spreadPerShot = 0.35f, maxSpread = 4f;   // degrees
         public float recoilKick = 0.9f;
+        public float triggerThreshold = 0.5f;   // gamepad trigger pull needed to fire (drift guard)
 
         public int Ammo { get; private set; }
         public int Reserve => reserve;
@@ -65,7 +66,7 @@ namespace DustYard
             if (!locked) wasUnlocked = true;
             if (locked && wasUnlocked && mouse != null && mouse.leftButton.isPressed) return;   // the click that grabbed the mouse doesn't fire
             wasUnlocked = false;
-            bool trigger = (locked && mouse != null && mouse.leftButton.isPressed) || (pad != null && pad.rightTrigger.isPressed);
+            bool trigger = (locked && mouse != null && mouse.leftButton.isPressed) || (pad != null && pad.rightTrigger.ReadValue() >= triggerThreshold);
             bool reloadPressed = (kb != null && kb.rKey.wasPressedThisFrame) || (pad != null && pad.buttonWest.wasPressedThisFrame);
 
             cooldown -= dt;

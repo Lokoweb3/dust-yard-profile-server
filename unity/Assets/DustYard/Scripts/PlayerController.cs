@@ -30,6 +30,7 @@ namespace DustYard
         [Header("Look")]
         public float mouseSensitivity = 0.12f;
         public float gamepadLookSpeed = 160f;
+        public float stickDeadzone = 0.15f;   // drifting sticks below this read as zero
 
         public bool IsSprinting { get; private set; }
         public bool IsMoving { get; private set; }
@@ -68,7 +69,7 @@ namespace DustYard
             // ---- look
             Vector2 look = Vector2.zero;
             if (mouse != null && Cursor.lockState == CursorLockMode.Locked) look += mouse.delta.ReadValue() * mouseSensitivity;
-            if (pad != null) look += pad.rightStick.ReadValue() * gamepadLookSpeed * dt;
+            if (pad != null) look += ApplyDeadzone(pad.rightStick.ReadValue(), stickDeadzone) * gamepadLookSpeed * dt;
             yaw += look.x;
             pitch = Mathf.Clamp(pitch - look.y, -85f, 85f);
             recoilPitch = Mathf.Lerp(recoilPitch, 0f, 1f - Mathf.Exp(-10f * dt));
@@ -82,7 +83,7 @@ namespace DustYard
                 if (kb.wKey.isPressed) move.y += 1; if (kb.sKey.isPressed) move.y -= 1;
                 if (kb.dKey.isPressed) move.x += 1; if (kb.aKey.isPressed) move.x -= 1;
             }
-            if (pad != null) move += pad.leftStick.ReadValue();
+            if (pad != null) move += ApplyDeadzone(pad.leftStick.ReadValue(), stickDeadzone);
             move = Vector2.ClampMagnitude(move, 1f);
             bool sprintHeld = (kb != null && kb.leftShiftKey.isPressed) || (pad != null && pad.leftStickButton.isPressed);
             bool jumpPressed = (kb != null && kb.spaceKey.wasPressedThisFrame) || (pad != null && pad.buttonSouth.wasPressedThisFrame);
@@ -148,6 +149,14 @@ namespace DustYard
             // ---- cursor: Esc frees it, a click grabs it again
             if (kb != null && kb.escapeKey.wasPressedThisFrame) LockCursor(false);
             if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked) LockCursor(true);
+        }
+
+        /// <summary>Radial deadzone: zero inside, rescaled so output still reaches 1 at full deflection.</summary>
+        public static Vector2 ApplyDeadzone(Vector2 v, float deadzone)
+        {
+            float m = v.magnitude;
+            if (m < deadzone) return Vector2.zero;
+            return v * ((m - deadzone) / (1f - deadzone) / m);
         }
 
         bool CanStand()
