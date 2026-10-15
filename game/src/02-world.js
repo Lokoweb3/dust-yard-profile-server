@@ -6,7 +6,7 @@ let worldParent = scene, buildMap = 'yard';
 const _wStart = scene.children.length;
 const barrels = [];
 function registerBarrel(m, box){ const b = { m, box, hp:30, map:buildMap, alive:true, chainT:0 }; m.userData.barrel = b; barrels.push(b); }
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshStandardMaterial({ map:groundTex, roughness:1 }));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshStandardMaterial({ map:groundTex, roughness:1, normalMap:groundNorm, normalScale:new THREE.Vector2(.55,.55) }));
 groundTex.repeat.set(120,120);
 ground.material.onBeforeCompile = sh => {
   sh.uniforms.macroMap = { value:groundMacro };
@@ -29,17 +29,18 @@ function addBox(x, z, w, d, h, mat, y0=0, collide=true){
   if (collide) boxes.push({ minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, top:y0+h });
   return m;
 }
-const wallMat = new THREE.MeshStandardMaterial({ map:concreteTex, roughness:.95 });
+const wallMat = new THREE.MeshStandardMaterial({ map:concreteTex, roughness:.95, normalMap:concreteNorm, normalScale:new THREE.Vector2(.7,.7) });
 addBox(0, -ARENA-0.5, ARENA*2+2, 1, 3.6, wallMat, 0, false);
 addBox(0,  ARENA+0.5, ARENA*2+2, 1, 3.6, wallMat, 0, false);
 addBox(-ARENA-0.5, 0, 1, ARENA*2, 3.6, wallMat, 0, false);
 addBox( ARENA+0.5, 0, 1, ARENA*2, 3.6, wallMat, 0, false);
 
+const cNormScale = new THREE.Vector2(.9,.9);
 const cMats = {
-  teal: new THREE.MeshStandardMaterial({ map:containerTex('#2f6f73'), roughness:.75, metalness:.25 }),
-  rust: new THREE.MeshStandardMaterial({ map:containerTex('#8a4b2f'), roughness:.8,  metalness:.2 }),
-  mustard: new THREE.MeshStandardMaterial({ map:containerTex('#b88a2c'), roughness:.78, metalness:.2 }),
-  slate: new THREE.MeshStandardMaterial({ map:containerTex('#4d5566'), roughness:.78, metalness:.25 })
+  teal: new THREE.MeshStandardMaterial({ map:containerTex('#2f6f73'), roughness:.75, metalness:.25, normalMap:containerNorm, normalScale:cNormScale }),
+  rust: new THREE.MeshStandardMaterial({ map:containerTex('#8a4b2f'), roughness:.8,  metalness:.2, normalMap:containerNorm, normalScale:cNormScale }),
+  mustard: new THREE.MeshStandardMaterial({ map:containerTex('#b88a2c'), roughness:.78, metalness:.2, normalMap:containerNorm, normalScale:cNormScale }),
+  slate: new THREE.MeshStandardMaterial({ map:containerTex('#4d5566'), roughness:.78, metalness:.25, normalMap:containerNorm, normalScale:cNormScale })
 };
 const containers = [
   [-22,-18,12,2.6,'teal',true], [20,-22,2.6,12,'rust'], [4,-6,12,2.6,'mustard'], [-6,8,2.6,12,'slate'],
@@ -50,7 +51,7 @@ for (const [x,z,w,d,c,stack] of containers){
   addBox(x,z,w,d,2.6,cMats[c]);
   if (stack){ addBox(x,z,w,d,2.6,cMats[stack===true ? (c==='teal'?'rust':'mustard') : c],2.6,false); boxes[boxes.length-1].top = 5.2; }
 }
-const crateMat = new THREE.MeshStandardMaterial({ map:crateTex, roughness:.9 });
+const crateMat = new THREE.MeshStandardMaterial({ map:crateTex, roughness:.9, normalMap:crateNorm, normalScale:new THREE.Vector2(.7,.7) });
 const crates = [[14,4,1],[-14,-6,2],[28,30,1],[-30,32,1],[0,18,2],[-2,-22,1],[8,-38,1],[-38,-30,1],[16,-12,1],[-20,0,1],[38,20,1]];
 for (const [x,z,n] of crates){
   addBox(x,z,1.6,1.6,1.6,crateMat);

@@ -68,8 +68,9 @@ const YARD_EXTRA = { platforms:[], perches:[] };
     speckle(g, w, h, 2500, '60,40,25', '235,225,210');
     g.fillStyle = 'rgba(40,30,20,.35)'; g.fillRect(0, h - 4, w, 4);
   });
-  const sheetM = kitMat({ map:sheetTex('#8f8a7c'), roughness:.55, metalness:.55 });
-  const sheetBlue = kitMat({ map:sheetTex('#4f6b7c'), roughness:.55, metalness:.55 });
+  const sheetNS = new THREE.Vector2(.85,.85);
+  const sheetM = kitMat({ map:sheetTex('#8f8a7c'), roughness:.55, metalness:.55, normalMap:sheetNorm, normalScale:sheetNS });
+  const sheetBlue = kitMat({ map:sheetTex('#4f6b7c'), roughness:.55, metalness:.55, normalMap:sheetNorm, normalScale:sheetNS });
   const steelM = kitMat({ color:0x3b3a3c, roughness:.5, metalness:.75 });
   const yellowM = kitMat({ color:0xd8a020, roughness:.5, metalness:.3 });
   const slabTex = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#9b9488'; g.fillRect(0, 0, w, h); speckle(g, w, h, 5000, '60,56,50', '210,205,195');
@@ -79,7 +80,7 @@ const YARD_EXTRA = { platforms:[], perches:[] };
   const woodTex = canvasTex(128, 64, (g, w, h) => { g.fillStyle = '#9a7650'; g.fillRect(0, 0, w, h); for (let y=0;y<h;y+=2){ g.fillStyle = `rgba(60,38,18,${.08 + Math.random()*.18})`; g.fillRect(0, y, w, 1); } speckle(g, w, h, 300, '50,30,10', '220,190,150'); });
   const woodM = kitMat({ map:woodTex, roughness:.85 });
   const tyreM = kitMat({ color:0x1d1c1b, roughness:.9 });
-  const rustM = kitMat({ map:containerTex('#6d3d22'), roughness:.8, metalness:.4 });
+  const rustM = kitMat({ map:containerTex('#6d3d22'), roughness:.8, metalness:.4, normalMap:containerNorm, normalScale:new THREE.Vector2(.9,.9) });
   const darkGlass = kitMat({ color:0x15181c, roughness:.15, metalness:.8 });
 
   // ---- 1. Depot 7: a two-storey warehouse with a mezzanine, racks, roll-up doors and a caved-in east side
@@ -163,7 +164,7 @@ const YARD_EXTRA = { platforms:[], perches:[] };
   addCollider(-28.6, .4, 1.9, 2.4, 1.6);
 
   // ---- 2. a jackknifed semi: flatbed trailer with a container, the cab twisted off to the side
-  const trailerM = kitMat({ map:containerTex('#5b6d7a'), roughness:.75, metalness:.25 });
+  const trailerM = kitMat({ map:containerTex('#5b6d7a'), roughness:.75, metalness:.25, normalMap:containerNorm, normalScale:new THREE.Vector2(.9,.9) });
   const cabTex = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#a3322a'; g.fillRect(0, 0, w, h); speckle(g, w, h, 900, '60,20,10', '230,160,140');
     for (let i=0;i<40;i++){ g.fillStyle = `rgba(80,40,20,${Math.random()*.5})`; g.fillRect(Math.random()*w, Math.random()*h, 2 + Math.random()*10, 1 + Math.random()*4); } g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(0, h*.62, w, 4); });
   const cabM = kitMat({ map:cabTex, roughness:.5, metalness:.45 });

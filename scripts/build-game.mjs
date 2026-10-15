@@ -22,7 +22,7 @@ import { createHash } from 'node:crypto';
 import { transformSync } from 'esbuild';
 
 const G = 'game', OUT = 'public/index.html', ASSET_DIR = 'public/assets', STANDALONE = 'dist/dust-yard.html';
-const read = f => readFileSync(f, 'utf8');
+const read = f => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');   // CRLF checkouts must build the same bytes
 const kb = n => (n/1024).toFixed(0) + ' KB';
 
 /** The whole game as one self-contained page, exactly as the single-file version used to be. */

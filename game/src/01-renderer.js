@@ -14,7 +14,7 @@ const qPR = () => Math.min(window.devicePixelRatio || 1, QUALITY[cfg.quality].pr
 renderer.setPixelRatio(qPR());
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false; let shadowTick = 0;
 renderer.autoClear = false;
 $('game').appendChild(renderer.domElement);
@@ -149,4 +149,65 @@ const flashTex = canvasTex(64,64,(g,w,h)=>{
   gr.addColorStop(0,'rgba(255,250,220,1)'); gr.addColorStop(.25,'rgba(255,190,90,.9)'); gr.addColorStop(1,'rgba(255,120,30,0)');
   g.fillStyle=gr; g.fillRect(0,0,w,h);
 });
+
+/* ---------- Normal maps ----------
+   The albedo textures paint their relief (ribs, grooves, ripples); these height-derived normal
+   maps make the sun actually rake across it. Heights are drawn in greyscale (mid-grey = flat),
+   converted with a wrap-around Sobel so tiles stay seamless. */
+function normalTex(w, h, drawHeight, strength, rep){
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.fillStyle = '#808080'; g.fillRect(0, 0, w, h);
+  drawHeight(g, w, h);
+  const src = g.getImageData(0, 0, w, h).data;
+  const out = g.createImageData(w, h), d = out.data;
+  const hv = (x, y) => src[((((y % h) + h) % h)*w + (((x % w) + w) % w))*4]/255;
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++){
+    const dx = (hv(x - 1, y) - hv(x + 1, y))*strength, dy = (hv(x, y + 1) - hv(x, y - 1))*strength;
+    const inv = 1/Math.hypot(dx, dy, 1), i = (y*w + x)*4;
+    d[i] = (dx*inv*.5 + .5)*255; d[i+1] = (dy*inv*.5 + .5)*255; d[i+2] = (inv*.5 + .5)*255; d[i+3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (rep) t.repeat.set(rep[0], rep[1]);
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+const colGrey = v => { const b = Math.max(0, Math.min(255, Math.round(v))); return `rgb(${b},${b},${b})`; };
+// sand: wind ripples warped by larger drifts, plus grain and pebble bumps
+const groundNorm = normalTex(256,256,(g,w,h)=>{
+  for (let y=0;y<h;y++){
+    const warp = Math.sin(y*.045)*9 + Math.sin(y*.013 + 2)*16;
+    for (let x=0;x<w;x+=2){
+      const v = 128 + 42*Math.sin((x + warp + Math.sin(x*.05 + y*.02)*6)*2*Math.PI/34);
+      g.fillStyle = colGrey(v); g.fillRect(x, y, 2, 1);
+    }
+  }
+  for (let i=0;i<2600;i++){ g.fillStyle = colGrey(128 + (Math.random() - .5)*70); const s = Math.random()*2 + 1; g.fillRect(Math.random()*w, Math.random()*h, s, s); }
+  for (let i=0;i<130;i++){ const x = Math.random()*w, y = Math.random()*h, r = 1 + Math.random()*2.2;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r*1.4); gr.addColorStop(0, 'rgba(230,230,230,.9)'); gr.addColorStop(1, 'rgba(128,128,128,0)');
+    g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r*1.4, r, 0, 0, 6.3); g.fill(); }
+}, 2.0, [120,120]);
+// container walls: ribs every 10px, aligned with containerTex's painted shading, raised frame
+const containerNorm = normalTex(256,128,(g,w,h)=>{
+  for (let x=0;x<w;x++){ g.fillStyle = colGrey(128 + 96*Math.sin(2*Math.PI*x/10 - .3*Math.PI)); g.fillRect(x, 0, 1, h); }
+  g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, w, 5); g.fillRect(0, h - 5, w, 5); g.fillRect(0, 0, 5, h); g.fillRect(w - 5, 0, 5, h);
+}, 2.6);
+// corrugated sheet: 16px period, aligned with sheetTex's gradient (bright at ~45%)
+const sheetNorm = normalTex(256,256,(g,w,h)=>{
+  for (let x=0;x<w;x++){ g.fillStyle = colGrey(128 + 96*Math.sin(2*Math.PI*x/16 - .375*Math.PI)); g.fillRect(x, 0, 1, h); }
+}, 2.6);
+// concrete: panel grooves every 64px plus surface noise
+const concreteNorm = normalTex(256,128,(g,w,h)=>{
+  for (let i=0;i<1400;i++){ g.fillStyle = colGrey(128 + (Math.random() - .5)*46); const s = Math.random()*3 + 1; g.fillRect(Math.random()*w, Math.random()*h, s, s); }
+  g.fillStyle = '#3c3c3c'; for (let x=0;x<w;x+=64) g.fillRect(x, 0, 2, h);
+  g.fillStyle = '#5a5a5a'; g.fillRect(0, h - 10, w, 2);
+}, 2.2, [12,1]);
+// crate: plank grooves, raised frame and cross braces
+const crateNorm = normalTex(128,128,(g,w,h)=>{
+  g.fillStyle = '#4a4a4a'; for (let y=0;y<h;y+=21) g.fillRect(0, y, w, 2);
+  g.strokeStyle = '#b4b4b4'; g.lineWidth = 10; g.strokeRect(5, 5, w - 10, h - 10);
+  g.beginPath(); g.moveTo(8, 8); g.lineTo(w - 8, h - 8); g.moveTo(w - 8, 8); g.lineTo(8, h - 8); g.stroke();
+  for (let i=0;i<300;i++){ g.fillStyle = colGrey(128 + (Math.random() - .5)*36); g.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+}, 2.0);
 

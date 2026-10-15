@@ -10,7 +10,8 @@ const files = execSync('git ls-files', { encoding: 'utf8' }).split('\n').filter(
 
 // keys and server data must never be in git
 for (const f of files) {
-  if (/^data\//.test(f) || /keypair/i.test(f) || /\.env($|\.)/.test(f)) fail.push(`${f}: server data, keys and .env files must not be committed`);
+  // keypair source code (the vendored ed25519 library's keypair.cs) is fine; keypair data files are not
+  if (/^data\//.test(f) || (/keypair/i.test(f) && !/\.cs(\.meta)?$/.test(f)) || /\.env($|\.)/.test(f)) fail.push(`${f}: server data, keys and .env files must not be committed`);
 }
 const KEY_ARRAY = /\[\s*(\d{1,3}\s*,\s*){63}\d{1,3}\s*\]/;          // a Solana/X1 secret key saved as a 64-number array
 const PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
