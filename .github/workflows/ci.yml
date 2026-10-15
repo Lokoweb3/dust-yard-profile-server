@@ -91,3 +91,26 @@ jobs:
           name: screenshots
           path: test-results/
           if-no-files-found: ignore
+
+  visual:
+    name: Visual regression + performance budget
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: The yard still looks like the golden, runs fast enough, and the page fits the budget
+        run: npm run test:visual
+      - name: Keep the shot and the diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual
+          path: test-results/visual-*.png
+          if-no-files-found: ignore

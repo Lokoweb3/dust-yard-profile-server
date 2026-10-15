@@ -157,13 +157,20 @@ box(bm, uv, 0, (-0.265, 0.17, 1.12), (-0.235, 0.23, 1.20))      # grip
 cyl(bm, uv, 0, (-0.25, 0.62, 1.245), 0.011, 0.28)               # barrel to y=0.76
 bm.normal_update(); bm.to_mesh(gun.data); bm.free()
 
-# ---------------- flip to Unity +Z forward and export ----------------
+# ---------------- export ----------------
 for o in (body, head, gun, *legs):
     for poly in o.data.polygons:
         poly.use_smooth = False
-    o.rotation_euler = (0.0, 0.0, math.pi)
     o.select_set(True)
 bpy.context.view_layer.objects.active = body
+if OUT.lower().endswith(".glb"):
+    # glTF for the browser game: the exporter converts Z-up -> Y-up itself (no Unity flip)
+    bpy.ops.export_scene.gltf(filepath=OUT, use_selection=True, export_format='GLB')
+    print("EXPORTED:", OUT)
+    import sys as _sys; _sys.exit(0)
+# flip to Unity +Z forward for FBX
+for o in (body, head, gun, *legs):
+    o.rotation_euler = (0.0, 0.0, math.pi)
 bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
 bpy.ops.export_scene.fbx(
     filepath=OUT, use_selection=True,

@@ -115,11 +115,15 @@ for poly in mesh.polygons:
 
 bpy.context.view_layer.objects.active = obj
 obj.select_set(True)
-bpy.ops.export_scene.fbx(
-    filepath=OUT, use_selection=True,
-    apply_scale_options='FBX_SCALE_ALL',
-    axis_forward='-Z', axis_up='Y',
-    bake_space_transform=True,
-    object_types={'MESH'}, add_leaf_bones=False,
-)
+if OUT.lower().endswith(".glb"):
+    # glTF for the browser game: the exporter handles Z-up -> Y-up itself
+    bpy.ops.export_scene.gltf(filepath=OUT, use_selection=True, export_format='GLB')
+else:
+    bpy.ops.export_scene.fbx(
+        filepath=OUT, use_selection=True,
+        apply_scale_options='FBX_SCALE_ALL',
+        axis_forward='-Z', axis_up='Y',
+        bake_space_transform=True,
+        object_types={'MESH'}, add_leaf_bones=False,
+    )
 print("EXPORTED:", OUT)

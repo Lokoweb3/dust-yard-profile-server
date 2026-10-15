@@ -5,7 +5,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import net from 'node:net';
 import pg from 'pg';
+
+// The requested port plus however many steps it takes to find one that's really free on both
+// 127.0.0.1 and 0.0.0.0 (on some machines a relay squats localhost ports and answers for them).
+async function freePort(start){
+  const can = (port, host) => new Promise(res => {
+    const s = net.createServer().once('error', () => res(false)).listen(port, host, () => s.close(() => res(true)));
+  });
+  for (let p = start; p < start + 50; p++) if (await can(p, '127.0.0.1') && await can(p, '0.0.0.0')) return p;
+  throw new Error('no free port near ' + start);
+}
 
 async function admin(sql){
   const c = new pg.Client({ connectionString:process.env.TEST_DATABASE_URL }); await c.connect();
@@ -30,6 +41,7 @@ export async function dropDatabase(url){
  * stop() ends the server; cleanup() also removes the data folder and database it created.
  */
 export async function startServer(port = 8790, options = {}){
+  port = await freePort(port);
   const ownDir = !options.dataDir, dataDir = options.dataDir || mkdtempSync(join(tmpdir(), 'dy-data-'));
   const ownDb = options.databaseUrl === undefined, databaseUrl = ownDb ? await freshDatabase() : options.databaseUrl;
   const env = { ...process.env, PORT:String(port), DATA_DIR:dataDir, PUBLIC_URL:`http://localhost:${port}`, ...(options.env || {}) };

@@ -156,23 +156,27 @@ for sx in (-1, 1):   # brake slots
 bm.normal_update(); bm.to_mesh(muz.data); bm.free()
 
 # ---------------- export ----------------
-# Blender +Y exports to Unity -Z with these axis settings, so flip 180 about Z
-# to get the barrel pointing down Unity +Z.
 for poly_obj in (body, mag, sight, muz):
     for poly in poly_obj.data.polygons:
         poly.use_smooth = False
-    poly_obj.rotation_euler = (0.0, 0.0, math.pi)
-    l = poly_obj.location
-    poly_obj.location = Vector((-l.x, -l.y, l.z))
     poly_obj.select_set(True)
 bpy.context.view_layer.objects.active = body
-bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
-bpy.context.view_layer.objects.active = body
-bpy.ops.export_scene.fbx(
-    filepath=OUT, use_selection=True,
-    apply_scale_options='FBX_SCALE_ALL',
-    axis_forward='-Z', axis_up='Y',
-    bake_space_transform=True,
-    object_types={'MESH'}, add_leaf_bones=False,
-)
+if OUT.lower().endswith(".glb"):
+    # glTF for the browser game: the exporter converts Z-up -> Y-up with -Z forward itself
+    bpy.ops.export_scene.gltf(filepath=OUT, use_selection=True, export_format='GLB')
+else:
+    # Blender +Y exports to Unity -Z with these axis settings, so flip 180 about Z
+    # to get the barrel pointing down Unity +Z.
+    for poly_obj in (body, mag, sight, muz):
+        poly_obj.rotation_euler = (0.0, 0.0, math.pi)
+        l = poly_obj.location
+        poly_obj.location = Vector((-l.x, -l.y, l.z))
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    bpy.ops.export_scene.fbx(
+        filepath=OUT, use_selection=True,
+        apply_scale_options='FBX_SCALE_ALL',
+        axis_forward='-Z', axis_up='Y',
+        bake_space_transform=True,
+        object_types={'MESH'}, add_leaf_bones=False,
+    )
 print("EXPORTED:", OUT)

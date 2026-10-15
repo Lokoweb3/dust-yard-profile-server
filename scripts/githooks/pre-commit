@@ -1,0 +1,10 @@
+#!/bin/sh
+# Install once with: npm run hooks
+# Fast safety net before every commit: no keys in the repo, and public/ matches game/.
+node scripts/check-repo.mjs || exit 1
+node scripts/build-game.mjs >/dev/null 2>&1 || { echo "pre-commit: the game build failed"; exit 1; }
+if [ -n "$(git status --porcelain public/)" ]; then
+  echo "pre-commit: public/ was out of date with game/ - it has been rebuilt, stage it and commit again"
+  exit 1
+fi
+exit 0

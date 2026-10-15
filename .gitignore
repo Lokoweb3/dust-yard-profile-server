@@ -1,5 +1,6 @@
 node_modules
 data
+build
 *.json.tmp
 test-results
 .env

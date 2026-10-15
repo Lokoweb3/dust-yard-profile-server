@@ -126,6 +126,15 @@ The code files share one scope, so order matters: a file can use anything an ear
 - Commit the sources and `public/`. CI fails if `public/` is out of date with the sources.
 - The HD heads only download when they're needed: your own operator's, and the ones the current map's raiders use.
 
+## Development workflow
+
+- `npm run dev` — rebuild on every change in `game/` and serve the game locally (it prints the address, picking a port nothing else holds). Game data goes to `data/dev`.
+- `npm run test:visual` — boots a throwaway server, deploys into a wave match in headless Chromium with seeded randomness, and compares the yard against `tests/goldens/`. Also asserts a frame-rate floor and that `public/index.html` stays under its size budget. After an intended visual change, run `npm run goldens` and commit the new golden. CI runs this on every push and uploads the shot and the diff as artifacts.
+- `node scripts/screenshot-game.mjs <prefix>` — just the screenshots, for eyeballing a change.
+- `npm run assets` — runs the Blender generators in `tools/blender/` headless and exports GLB models to `build/glb/` (set `BLENDER=path/to/blender` if it isn't found). The same generators export FBX for the Unity port in `unity/` when given a `.fbx` path.
+- `npm run hooks` — installs the pre-commit hook (`scripts/githooks/`): repo safety checks plus a build-freshness check, so a stale `public/` never reaches CI.
+- **Staging:** the `staging` branch deploys to its own Railway service (`dust-yard-staging-….up.railway.app`, ephemeral data, no volume). Push visual changes there and play them at a real URL before merging to `main`, which deploys to the live game.
+
 ## Compliance features
 
 Not legal advice; have a lawyer confirm the settings below.
