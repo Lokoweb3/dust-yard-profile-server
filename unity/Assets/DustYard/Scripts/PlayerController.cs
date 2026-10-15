@@ -148,7 +148,7 @@ namespace DustYard
 
             // ---- cursor: Esc frees it, a click grabs it again
             if (kb != null && kb.escapeKey.wasPressedThisFrame) LockCursor(false);
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked) LockCursor(true);
+            if (mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame) && Cursor.lockState != CursorLockMode.Locked) LockCursor(true);
         }
 
         /// <summary>Radial deadzone: zero inside, rescaled so output still reaches 1 at full deflection.</summary>

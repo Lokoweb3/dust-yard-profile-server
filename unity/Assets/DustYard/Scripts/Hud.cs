@@ -36,8 +36,14 @@ namespace DustYard
             waveText.text = spawner.Wave == 0 ? "Get ready" : $"Wave {spawner.Wave}   ·   {spawner.LeftThisWave} raiders left   ·   {spawner.Kills} kills";
 
             float gap = 10f + weapon.SpreadNow * 9f;
+            float crossAlpha = 1f - weapon.AdsAmount;   // the sight takes over while aiming
             Vector2[] dirs = { Vector2.up, Vector2.down, Vector2.left, Vector2.right };
-            for (int i = 0; i < crosshair.Length; i++) crosshair[i].anchoredPosition = dirs[i] * gap;
+            for (int i = 0; i < crosshair.Length; i++)
+            {
+                crosshair[i].anchoredPosition = dirs[i] * gap;
+                var img = crosshair[i].GetComponent<Image>();
+                if (img) { var c = img.color; c.a = crossAlpha; img.color = c; }
+            }
 
             hitT -= dt; var hc = hitMarker.color; hc.a = Mathf.Clamp01(hitT / 0.18f); hitMarker.color = hc;
             dmgT -= dt; damageFlash.color = new Color(0.6f, 0f, 0f, Mathf.Clamp01(dmgT) * 0.5f + (1f - playerHealth.Current / playerHealth.max) * 0.25f);
