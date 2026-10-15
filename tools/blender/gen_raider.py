@@ -64,14 +64,7 @@ def cyl(bm, uv, mat_i, center, radius, length, segments=10):
 body = new_obj("Body", [m_cloth, m_metal])
 bm = bmesh.new(); uv = bm.loops.layers.uv.new("UVMap")
 CLOTH, METAL = 0, 1
-# boots (dark)
-box(bm, uv, METAL, (-0.16, -0.11, 0.0), (-0.02, 0.16, 0.12))
-box(bm, uv, METAL, (0.02, -0.11, 0.0), (0.16, 0.16, 0.12))
-# legs with knee wraps
-box(bm, uv, CLOTH, (-0.145, -0.09, 0.12), (-0.025, 0.09, 0.88))
-box(bm, uv, CLOTH, (0.025, -0.09, 0.12), (0.145, 0.09, 0.88))
-for sx in (-1, 1):
-    box(bm, uv, CLOTH, (sx * 0.085 - 0.07, -0.105, 0.45), (sx * 0.085 + 0.07, 0.105, 0.56))
+# (legs and boots are separate hip-pivoted objects for the walk animation)
 # hips + belt (dark) + pouches
 box(bm, uv, CLOTH, (-0.17, -0.11, 0.84), (0.17, 0.11, 1.0))
 box(bm, uv, METAL, (-0.175, -0.115, 0.95), (0.175, 0.115, 1.0))
@@ -115,8 +108,28 @@ box(bm, uv, CLOTH, (0.15, 0.22, 1.16), (0.25, 0.5, 1.26), post=l_fore)
 box(bm, uv, METAL, (-0.225, 0.48, 1.16), (-0.16, 0.56, 1.23))   # support hand on handguard
 bm.normal_update(); bm.to_mesh(body.data); bm.free()
 
+# ---------------- Legs (origin at hip, for the walk swing) ----------------
+# After the export flip Blender -X lands on Unity +X, so sx=-1 is named LegR.
+legs = []
+for sx, lname in ((-1, "LegR"), (1, "LegL")):
+    pivot = Vector((sx * 0.085, 0.0, 0.88))
+    leg = new_obj(lname, [m_cloth, m_metal])
+    leg.location = pivot
+    bml = bmesh.new(); uvl = bml.loops.layers.uv.new("UVMap")
+    x0, x1 = sx * 0.085 - 0.06, sx * 0.085 + 0.06
+    box(bml, uvl, 0, (x0, -0.09, 0.12), (x1, 0.09, 0.9))                      # leg
+    box(bml, uvl, 0, (x0 - 0.015, -0.105, 0.45), (x1 + 0.015, 0.105, 0.56))  # knee wrap
+    box(bml, uvl, 1, (x0 - 0.015, -0.11, 0.0), (x1 + 0.015, 0.16, 0.12))     # boot
+    for v in bml.verts:
+        v.co -= pivot
+    bml.normal_update(); bml.to_mesh(leg.data); bml.free()
+    legs.append(leg)
+
 # ---------------- Head (0 RaiderCloth, 1 RaiderMask, 2 GunMetal) ----------------
+# Origin at the neck so the walk nod pivots naturally.
+HEAD_PIVOT = Vector((0.0, 0.0, 1.56))
 head = new_obj("Head", [m_cloth, m_mask, m_metal])
+head.location = HEAD_PIVOT
 bm = bmesh.new(); uv = bm.loops.layers.uv.new("UVMap")
 HCLOTH, HMASK, HMETAL = 0, 1, 2
 # hood: tapers to a point swept back
@@ -130,6 +143,8 @@ box(bm, uv, HMASK, (-0.095, 0.115, 1.6), (0.095, 0.145, 1.78))
 box(bm, uv, HMETAL, (-0.10, 0.13, 1.70), (0.10, 0.155, 1.76))
 # breather box on the mask
 box(bm, uv, HMETAL, (-0.045, 0.14, 1.60), (0.045, 0.17, 1.67))
+for v in bm.verts:
+    v.co -= HEAD_PIVOT
 bm.normal_update(); bm.to_mesh(head.data); bm.free()
 
 # ---------------- Gun (0 GunMetal) ----------------
@@ -143,7 +158,7 @@ cyl(bm, uv, 0, (-0.25, 0.62, 1.245), 0.011, 0.28)               # barrel to y=0.
 bm.normal_update(); bm.to_mesh(gun.data); bm.free()
 
 # ---------------- flip to Unity +Z forward and export ----------------
-for o in (body, head, gun):
+for o in (body, head, gun, *legs):
     for poly in o.data.polygons:
         poly.use_smooth = False
     o.rotation_euler = (0.0, 0.0, math.pi)
