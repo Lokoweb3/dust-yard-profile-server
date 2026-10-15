@@ -86,7 +86,7 @@ namespace DustYard
                 if (sight)
                 {
                     Vector3 sightInCam = transform.InverseTransformPoint(sight.position);
-                    adsPos = gunRest - new Vector3(sightInCam.x, sightInCam.y + 0.018f, -0.04f);
+                    adsPos = gunRest - new Vector3(sightInCam.x, sightInCam.y + 0.004f, -0.04f);   // dot sits on the point of impact
                 }
             }
             BuildEffects();
