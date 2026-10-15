@@ -18,6 +18,12 @@ namespace DustYard
         public int LeftThisWave => toSpawn + alive.Count;
         public float BreakLeft => breakT;
         public event System.Action<int> WaveStarted;
+        public event System.Action<int> WaveCleared;
+
+        // Wave sizes follow the browser game's rules (lib/matches.js verifies reports against them):
+        // 2+2w raiders, boss waves (every 5th) at 60%. The Unity port has no boss yet, so those
+        // waves are just smaller for now.
+        static int WaveSize(int w) { int n = 2 + 2 * w; return w % 5 == 0 ? Mathf.RoundToInt(n * 0.6f) : n; }
 
         readonly List<RaiderAI> alive = new List<RaiderAI>();
         int toSpawn; float spawnT, breakT = 3f;
@@ -30,7 +36,7 @@ namespace DustYard
             if (toSpawn == 0 && alive.Count == 0)
             {
                 breakT -= Time.deltaTime;
-                if (breakT <= 0f) { Wave++; toSpawn = 4 + Wave * 2; breakT = breakBetweenWaves; WaveStarted?.Invoke(Wave); }
+                if (breakT <= 0f) { Wave++; toSpawn = WaveSize(Wave); spawnT = 0.8f; breakT = breakBetweenWaves; WaveStarted?.Invoke(Wave); }
                 return;
             }
             spawnT -= Time.deltaTime;
@@ -52,7 +58,7 @@ namespace DustYard
                 // a little tougher each wave
                 var h = go.GetComponent<Health>(); h.max *= 1f + (Wave - 1) * 0.08f; h.Heal(h.max);
                 ai.accuracy = Mathf.Min(0.75f, ai.accuracy + Wave * 0.02f);
-                ai.Killed += r => { alive.Remove(r); Kills++; };
+                ai.Killed += r => { alive.Remove(r); Kills++; if (toSpawn == 0 && alive.Count == 0) WaveCleared?.Invoke(Wave); };
                 alive.Add(ai);
                 return true;
             }
