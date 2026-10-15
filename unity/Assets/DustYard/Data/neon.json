@@ -1,0 +1,952 @@
+{
+ "id": "neon",
+ "name": "Neon District",
+ "sky": "#1c1430",
+ "fogNear": 22,
+ "fogFar": 118,
+ "sun": "#8ea2ff",
+ "sunPitch": 35,
+ "sunYaw": 150,
+ "ambient": "#3a2c5a",
+ "ground": "#17181d",
+ "arena": 45,
+ "boxes": [
+  {
+   "minX": 37,
+   "maxX": 45,
+   "minZ": 7,
+   "maxZ": 45,
+   "top": 14,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9,
+   "maxX": 37,
+   "minZ": 38,
+   "maxZ": 45,
+   "top": 10,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9,
+   "maxX": 14,
+   "minZ": 28,
+   "maxZ": 38,
+   "top": 7,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 22,
+   "maxX": 30,
+   "minZ": 22,
+   "maxZ": 30,
+   "top": 4.2,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -45,
+   "maxX": -37,
+   "minZ": 7,
+   "maxZ": 45,
+   "top": 12,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -37,
+   "maxX": -9,
+   "minZ": 38,
+   "maxZ": 45,
+   "top": 16,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -14,
+   "maxX": -9,
+   "minZ": 28,
+   "maxZ": 38,
+   "top": 7,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -30,
+   "maxX": -22,
+   "minZ": 22,
+   "maxZ": 30,
+   "top": 4.2,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 37,
+   "maxX": 45,
+   "minZ": -45,
+   "maxZ": -7,
+   "top": 11,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9,
+   "maxX": 37,
+   "minZ": -45,
+   "maxZ": -38,
+   "top": 13,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9,
+   "maxX": 14,
+   "minZ": -38,
+   "maxZ": -28,
+   "top": 7,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 22,
+   "maxX": 30,
+   "minZ": -30,
+   "maxZ": -22,
+   "top": 4.2,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -45,
+   "maxX": -37,
+   "minZ": -45,
+   "maxZ": -7,
+   "top": 15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -37,
+   "maxX": -9,
+   "minZ": -45,
+   "maxZ": -38,
+   "top": 9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -14,
+   "maxX": -9,
+   "minZ": -38,
+   "maxZ": -28,
+   "top": 7,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -30,
+   "maxX": -22,
+   "minZ": -30,
+   "maxZ": -22,
+   "top": 4.2,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -9,
+   "maxX": 9,
+   "minZ": 41,
+   "maxZ": 45,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -9,
+   "maxX": 9,
+   "minZ": -45,
+   "maxZ": -41,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 41,
+   "maxX": 45,
+   "minZ": -7,
+   "maxZ": 7,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -45,
+   "maxX": -41,
+   "minZ": -7,
+   "maxZ": 7,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9,
+   "maxX": 11,
+   "minZ": 9,
+   "maxZ": 28,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -11,
+   "maxX": -9,
+   "minZ": 9,
+   "maxZ": 28,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9,
+   "maxX": 11,
+   "minZ": -28,
+   "maxZ": -9,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -11,
+   "maxX": -9,
+   "minZ": -28,
+   "maxZ": -9,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 11,
+   "maxX": 37,
+   "minZ": 7,
+   "maxZ": 9,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -37,
+   "maxX": -11,
+   "minZ": 7,
+   "maxZ": 9,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 11,
+   "maxX": 37,
+   "minZ": -9,
+   "maxZ": -7,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -37,
+   "maxX": -11,
+   "minZ": -9,
+   "maxZ": -7,
+   "top": 0.15,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 3.1,
+   "maxX": 4.9,
+   "minZ": 17.9,
+   "maxZ": 22.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -4.9,
+   "maxX": -3.1,
+   "minZ": -14.1,
+   "maxZ": -9.9,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 17.9,
+   "maxX": 22.1,
+   "minZ": -3.9,
+   "maxZ": -2.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -27.1,
+   "maxX": -22.9,
+   "minZ": 2.1,
+   "maxZ": 3.9,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 27.9,
+   "maxX": 32.1,
+   "minZ": 14.1,
+   "maxZ": 15.9,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -18.9,
+   "maxX": -17.1,
+   "minZ": -22.1,
+   "maxZ": -17.9,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 2.1,
+   "maxX": 3.9,
+   "minZ": -30.1,
+   "maxZ": -25.9,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -30.9,
+   "maxX": -29.1,
+   "minZ": 27.9,
+   "maxZ": 32.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 13.9,
+   "maxX": 18.1,
+   "minZ": -16.9,
+   "maxZ": -15.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 15,
+   "maxX": 17,
+   "minZ": 34.4,
+   "maxZ": 35.6,
+   "top": 1.3,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -17,
+   "maxX": -15,
+   "minZ": -35.6,
+   "maxZ": -34.4,
+   "top": 1.3,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 33,
+   "maxX": 35,
+   "minZ": -20.6,
+   "maxZ": -19.4,
+   "top": 1.3,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -35,
+   "maxX": -33,
+   "minZ": 19.4,
+   "maxZ": 20.6,
+   "top": 1.3,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 32,
+   "maxX": 34,
+   "minZ": 32.4,
+   "maxZ": 33.6,
+   "top": 1.3,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 11.2,
+   "maxX": 12.8,
+   "minZ": 11.2,
+   "maxZ": 12.8,
+   "top": 1.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -12.8,
+   "maxX": -11.2,
+   "minZ": -12.8,
+   "maxZ": -11.2,
+   "top": 1.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -33.8,
+   "maxX": -32.2,
+   "minZ": -33.8,
+   "maxZ": -32.2,
+   "top": 1.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 17.2,
+   "maxX": 18.8,
+   "minZ": 29.2,
+   "maxZ": 30.8,
+   "top": 1.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -4.5,
+   "maxX": -1.5,
+   "minZ": 9.67,
+   "maxZ": 10.33,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 3.5,
+   "maxX": 6.5,
+   "minZ": -18.33,
+   "maxZ": -17.67,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 29.67,
+   "maxX": 30.33,
+   "minZ": 0.5,
+   "maxZ": 3.5,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -30.33,
+   "maxX": -29.67,
+   "minZ": -3.5,
+   "maxZ": -0.5,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -1.5,
+   "maxX": 1.5,
+   "minZ": 23.67,
+   "maxZ": 24.33,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 7.7,
+   "maxX": 8.3,
+   "minZ": 23.7,
+   "maxZ": 24.3,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 7.1,
+   "maxX": 7.7,
+   "minZ": 24.4,
+   "maxZ": 25,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -8.3,
+   "maxX": -7.7,
+   "minZ": -16.3,
+   "maxZ": -15.7,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -7.7,
+   "maxX": -7.1,
+   "minZ": -17,
+   "maxZ": -16.4,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 25.7,
+   "maxX": 26.3,
+   "minZ": 3.7,
+   "maxZ": 4.3,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -26.3,
+   "maxX": -25.7,
+   "minZ": -4.3,
+   "maxZ": -3.7,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 20,
+   "maxX": 20.6,
+   "minZ": -31.3,
+   "maxZ": -30.7,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -31.3,
+   "maxX": -30.7,
+   "minZ": 19.7,
+   "maxZ": 20.3,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 5.7,
+   "maxX": 6.3,
+   "minZ": -32.3,
+   "maxZ": -31.7,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9.85,
+   "maxX": 10.15,
+   "minZ": 19.85,
+   "maxZ": 20.15,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -10.15,
+   "maxX": -9.85,
+   "minZ": 19.85,
+   "maxZ": 20.15,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 9.85,
+   "maxX": 10.15,
+   "minZ": -20.15,
+   "maxZ": -19.85,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -10.15,
+   "maxX": -9.85,
+   "minZ": -20.15,
+   "maxZ": -19.85,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 24.85,
+   "maxX": 25.15,
+   "minZ": -8.15,
+   "maxZ": -7.85,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -25.15,
+   "maxX": -24.85,
+   "minZ": 7.85,
+   "maxZ": 8.15,
+   "top": 8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -34.65,
+   "maxX": -33.35,
+   "minZ": -0.65,
+   "maxZ": 0.65,
+   "top": 9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -16.65,
+   "maxX": -15.35,
+   "minZ": -0.65,
+   "maxZ": 0.65,
+   "top": 9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 15.35,
+   "maxX": 16.65,
+   "minZ": -0.65,
+   "maxZ": 0.65,
+   "top": 9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 33.35,
+   "maxX": 34.65,
+   "minZ": -0.65,
+   "maxZ": 0.65,
+   "top": 9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 10.25,
+   "maxX": 10.55,
+   "minZ": 8.25,
+   "maxZ": 8.55,
+   "top": 4.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -10.55,
+   "maxX": -10.25,
+   "minZ": -8.55,
+   "maxZ": -8.25,
+   "top": 4.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 10.25,
+   "maxX": 10.55,
+   "minZ": -8.55,
+   "maxZ": -8.25,
+   "top": 4.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -10.55,
+   "maxX": -10.25,
+   "minZ": 8.25,
+   "maxZ": 8.55,
+   "top": 4.6,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 20.3,
+   "maxX": 23.7,
+   "minZ": 8.55,
+   "maxZ": 8.75,
+   "top": 2.5,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -12.85,
+   "maxX": -11.95,
+   "minZ": 23.55,
+   "maxZ": 24.45,
+   "top": 1.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 11.95,
+   "maxX": 12.85,
+   "minZ": -24.45,
+   "maxZ": -23.55,
+   "top": 1.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -15.05,
+   "maxX": -14.15,
+   "minZ": -30.45,
+   "maxZ": -29.55,
+   "top": 1.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -30.5,
+   "maxX": -27.5,
+   "minZ": 12.65,
+   "maxZ": 13.75,
+   "top": 1.05,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -26,
+   "maxX": -23,
+   "minZ": 12.65,
+   "maxZ": 13.75,
+   "top": 1.05,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -21.5,
+   "maxX": -18.5,
+   "minZ": 12.65,
+   "maxZ": 13.75,
+   "top": 1.05,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -17,
+   "maxX": -14,
+   "minZ": 12.65,
+   "maxZ": 13.75,
+   "top": 1.05,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 16.1,
+   "maxX": 17.9,
+   "minZ": 18.9,
+   "maxZ": 23.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 16.1,
+   "maxX": 17.9,
+   "minZ": 25.4,
+   "maxZ": 29.6,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 32.6,
+   "maxX": 34.4,
+   "minZ": 19.9,
+   "maxZ": 24.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 23.6,
+   "maxX": 25.4,
+   "minZ": 32.9,
+   "maxZ": 37.1,
+   "top": 1.8,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 33.7,
+   "maxX": 35.3,
+   "minZ": 15.7,
+   "maxZ": 17.3,
+   "top": 2.4,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -34.75,
+   "maxX": -34.45,
+   "minZ": -14.15,
+   "maxZ": -13.85,
+   "top": 3.4,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -17.55,
+   "maxX": -17.25,
+   "minZ": -14.15,
+   "maxZ": -13.85,
+   "top": 3.4,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": -30.5,
+   "maxX": -23.5,
+   "minZ": -21.7,
+   "maxZ": -19.8,
+   "top": 1.35,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 30.2,
+   "maxX": 31.8,
+   "minZ": -36.3,
+   "maxZ": -34.7,
+   "top": 30,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 15.3,
+   "maxX": 20.3,
+   "minZ": -25.9,
+   "maxZ": -24.3,
+   "top": 0.9,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 30.6,
+   "maxX": 32.4,
+   "minZ": -16.3,
+   "maxZ": -13.7,
+   "top": 2.2,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 13,
+   "maxX": 16,
+   "minZ": -12.33,
+   "maxZ": -11.67,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 13,
+   "maxX": 16,
+   "minZ": -33.33,
+   "maxZ": -32.67,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  },
+  {
+   "minX": 35.67,
+   "maxX": 36.33,
+   "minZ": -28.5,
+   "maxZ": -25.5,
+   "top": 0.82,
+   "bot": 0,
+   "under": -1
+  }
+ ],
+ "platforms": [],
+ "spawns": [
+  {
+   "x": 0,
+   "z": 38
+  },
+  {
+   "x": 38,
+   "z": 0
+  },
+  {
+   "x": -38,
+   "z": 0
+  },
+  {
+   "x": 34,
+   "z": 12
+  },
+  {
+   "x": -34,
+   "z": 34
+  },
+  {
+   "x": -15,
+   "z": 35
+  },
+  {
+   "x": -34,
+   "z": 12
+  },
+  {
+   "x": 34,
+   "z": -34
+  },
+  {
+   "x": 34,
+   "z": -12
+  },
+  {
+   "x": -34,
+   "z": -12
+  },
+  {
+   "x": 20,
+   "z": -34
+  },
+  {
+   "x": -20,
+   "z": -34
+  }
+ ],
+ "perches": [
+  {
+   "x": 26,
+   "y": 4.2,
+   "z": 26
+  },
+  {
+   "x": -26,
+   "y": 4.2,
+   "z": 26
+  },
+  {
+   "x": 26,
+   "y": 4.2,
+   "z": -26
+  },
+  {
+   "x": -26,
+   "y": 4.2,
+   "z": -26
+  }
+ ]
+}
