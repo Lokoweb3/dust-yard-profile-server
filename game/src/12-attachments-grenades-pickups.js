@@ -50,7 +50,7 @@ function nadeStep(p, v, dt){
   if (Math.abs(p.z) > L){ p.z = Math.sign(p.z)*L; v.z *= -.4; hit = true; }
   for (const b of boxes){
     const top = b.top || 1.2, r = .07;
-    if (p.y > top + r || p.x < b.minX - r || p.x > b.maxX + r || p.z < b.minZ - r || p.z > b.maxZ + r) continue;
+    if ((b.bot !== undefined && p.y < b.bot - r) || p.y > top + r || p.x < b.minX - r || p.x > b.maxX + r || p.z < b.minZ - r || p.z > b.maxZ + r) continue;
     const pen = [p.x - (b.minX - r), (b.maxX + r) - p.x, p.z - (b.minZ - r), (b.maxZ + r) - p.z, (top + r) - p.y];
     let k = 0; for (let i=1;i<5;i++) if (pen[i] < pen[k]) k = i;
     if (k === 0){ p.x = b.minX - r; v.x = -Math.abs(v.x)*.4; } else if (k === 1){ p.x = b.maxX + r; v.x = Math.abs(v.x)*.4; }

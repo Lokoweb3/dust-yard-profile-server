@@ -62,7 +62,7 @@ function updateSquad(dt){
 function coverPoint(e){
   let best = null, bd = 30;
   for (const b of boxes){
-    const top = b.top || 1.2; if (top < .8 || top > 6) continue;
+    const top = b.top || 1.2; if (top < .8 || top > 6 || b.bot !== undefined) continue;
     const cx = (b.minX + b.maxX)/2, cz = (b.minZ + b.maxZ)/2, d = Math.hypot(cx - e.pos.x, cz - e.pos.z);
     if (d > bd) continue;
     const ax = cx - P.pos.x, az = cz - P.pos.z, al = Math.hypot(ax, az) || 1, half = Math.max(b.maxX - b.minX, b.maxZ - b.minZ)/2 + 1.1;

@@ -88,6 +88,7 @@ const YARD_EXTRA = { platforms:[], perches:[] };
     const w = Math.max(.25, x1 - x0), d = Math.max(.25, z1 - z0);
     kitBox(w, h, d, mat, (x0 + x1)/2, y0 + h/2, (z0 + z1)/2, 0, 3);
     if (collide) addCollider((x0 + x1)/2, (z0 + z1)/2, w, d, y0 + h);
+    else if (y0 > 0) boxes.push({ minX:(x0 + x1)/2 - w/2, maxX:(x0 + x1)/2 + w/2, minZ:(z0 + z1)/2 - d/2, maxZ:(z0 + z1)/2 + d/2, top:y0 + h, bot:y0 });   // over a door: solid above head height
   };
   const slab = new THREE.PlaneGeometry(X1 - X0 + 2, Z1 - Z0 + 4); tileBoxPlane(slab, X1 - X0 + 2, Z1 - Z0 + 4, 4);
   kitAdd(slab, slabM, (X0 + X1)/2, .012, (Z0 + Z1)/2, -HP); slab.dispose();
@@ -106,6 +107,7 @@ const YARD_EXTRA = { platforms:[], perches:[] };
   // roof: whole over the west half, only the ends over the east half (the middle fell in)
   const roof = (x0, x1, z0, z1, tilt=0) => { const w = x1 - x0, d = z1 - z0; kitBox(w, .12, d, sheetM, (x0 + x1)/2, 6.06, (z0 + z1)/2, 0, 3, 0, tilt); };
   roof(X0 - .3, -33, Z0 - .3, Z1 + .3); roof(-33, X1 + .3, Z0 - .3, 7.2); roof(-33, X1 + .3, 14.8, Z1 + .3);
+  for (const [x0, x1, z0, z1] of [[X0 - .3, -33, Z0 - .3, Z1 + .3], [-33, X1 + .3, Z0 - .3, 7.2], [-33, X1 + .3, 14.8, Z1 + .3]]) YARD_EXTRA.platforms.push({ minX:x0, maxX:x1, minZ:z0, maxZ:z1, top:6.12, under:6 });
   kitBox(5, .12, 3.2, sheetM, -30.6, 4.6, 9.2, .3, 3, .35, -.55);                     // a sheet hanging down into the gap
   for (const [x, z, r] of [[-28.6, 10.5, .8], [-29.8, 12.6, 2.1], [-25.8, 11.6, -.4]]){ kitBox(rnd(1.6, 2.6), .12, rnd(1.2, 2), sheetM, x, .4, z, r, 3, rnd(-.3, .3), rnd(-.4, .4)); }
   kitBox(4.5, .3, .2, steelM, -29, 1.2, 11.2, .9, 0, 0, .45);                         // a fallen beam
@@ -121,7 +123,7 @@ const YARD_EXTRA = { platforms:[], perches:[] };
     for (let y=4;y<h;y+=12) for (let x=(y/12|0)%2*6 + 2;x<w;x+=12){ g.fillStyle = 'rgba(230,230,225,.35)'; g.fillRect(x, y, 6, 2); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x, y + 2, 6, 1); } });
   const plateM = kitMat({ map:plateTex, roughness:.6, metalness:.35 });
   kitBox(MX - X0 - .25, .22, Z1 - Z0 - .5, plateM, (X0 + .25 + MX)/2, MTOP - .11, (Z0 + Z1)/2, 0, 1.5);
-  YARD_EXTRA.platforms.push({ minX:X0 + .25, maxX:MX, minZ:Z0 + .25, maxZ:Z1 - .25, top:MTOP });
+  YARD_EXTRA.platforms.push({ minX:X0 + .25, maxX:MX, minZ:Z0 + .25, maxZ:Z1 - .25, top:MTOP, under:MTOP - .22 });
   for (const z of [5, 12, 17.5]) { kitBox(.25, MTOP, .25, steelM, MX - .15, MTOP/2, z); addCollider(MX - .15, z, .3, .3, MTOP - .25); }
   for (let i=0;i<9;i++){ const top = .333*(i + 1), z0 = 8.8 + i*.72; kitBox(1.8, top, .72, plateM, MX + 1.0, top/2, z0 + .36, 0, 1.2); addCollider(MX + 1.0, z0 + .36, 1.8, .72, top); }
   // railings: along the mezzanine edge (gap at the stairs) and up the stairs

@@ -73,6 +73,7 @@ function collide(p, r, y=0){
   p.x = Math.max(-L, Math.min(L, p.x)); p.z = Math.max(-L, Math.min(L, p.z));
   for (const b of boxes){
     if ((b.top || 1.2) <= y + .35) continue;
+    if (b.bot !== undefined && y + 1.8 <= b.bot) continue;   // a wall that starts above head height (over a doorway)
     const cx = Math.max(b.minX, Math.min(p.x, b.maxX)), cz = Math.max(b.minZ, Math.min(p.z, b.maxZ));
     const dx = p.x-cx, dz = p.z-cz, d2 = dx*dx+dz*dz;
     if (d2 < r*r){
@@ -86,6 +87,7 @@ function collide(p, r, y=0){
 }
 function freeSpot(x, z, r){
   for (const b of boxes){
+    if (b.bot !== undefined) continue;
     const cx = Math.max(b.minX, Math.min(x, b.maxX)), cz = Math.max(b.minZ, Math.min(z, b.maxZ));
     if ((x-cx)**2 + (z-cz)**2 < r*r) return false;
   }
